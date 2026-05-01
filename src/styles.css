@@ -556,18 +556,18 @@ h3 {
 .north-fields-preview {
   display: grid;
   gap: 9px;
-  margin: 0 12px 12px;
+  margin: 0 14px 14px;
   padding: 12px;
-  color: #dfe8df;
-  background: #151a16;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #17211c;
+  background: #f8faf6;
+  border: 1px solid #dce3d9;
   border-radius: 8px;
 }
 
 .north-fields-preview > strong {
   display: block;
   margin-bottom: 2px;
-  color: #fff;
+  color: #17211c;
   font-size: 0.86rem;
 }
 
@@ -578,7 +578,7 @@ h3 {
 
 .north-fields-preview span,
 .north-mini-list span {
-  color: #aebdaf;
+  color: #68756e;
   font-size: 0.72rem;
   font-weight: 850;
 }
@@ -588,9 +588,9 @@ h3 {
   min-height: 38px;
   align-items: center;
   padding: 0 10px;
-  color: #edf4ed;
-  background: #202820;
-  border: 1px solid #334238;
+  color: #17211c;
+  background: #fffdfa;
+  border: 1px solid #dce3d9;
   border-radius: 8px;
   font-style: normal;
 }
@@ -604,63 +604,27 @@ h3 {
   flex-wrap: wrap;
   gap: 7px;
   align-items: center;
-  margin: 0 12px 12px;
+  margin: 0 14px 14px;
   padding: 10px 12px;
-  background: #151a16;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #f8faf6;
+  border: 1px solid #dce3d9;
   border-radius: 8px;
 }
 
 .north-mini-list small {
   padding: 4px 8px;
-  color: #edf4ed;
-  background: #26362f;
+  color: #245346;
+  background: #e4f2ed;
   border-radius: 999px;
-}
-
-.north-session-sync {
-  display: grid;
-  gap: 8px;
-  margin: 0 12px 12px;
-  padding: 12px;
-  color: #dfe8df;
-  background: #151a16;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-}
-
-.north-session-sync strong {
-  color: #fff;
-  font-size: 0.86rem;
-}
-
-.north-session-sync div {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.north-session-sync span {
-  color: #aebdaf;
-  font-size: 0.75rem;
-  line-height: 1.3;
-}
-
-.north-session-sync b {
-  color: #fff;
-  font-size: 0.78rem;
-  text-align: right;
 }
 
 .north-fields-container {
   display: none;
   min-height: 560px;
-  margin: 0 12px 12px;
+  margin: 0 14px 14px;
   overflow: hidden;
-  background: #f8faf6;
-  border: 1px solid #334238;
+  background: #fffdfa;
+  border: 1px solid #dce3d9;
   border-radius: 8px;
 }
 
@@ -710,8 +674,8 @@ h3 {
 .embedded-checkout {
   margin: 14px 0 18px;
   overflow: hidden;
-  background: #20251f;
-  border: 1px solid #30382f;
+  background: #fffdfa;
+  border: 1px solid #e5e2d9;
   border-radius: 8px;
 }
 
@@ -739,17 +703,21 @@ h3 {
 
 .payment-card {
   gap: 12px;
-  margin: 12px;
+  margin: 14px;
   padding: 14px;
-  color: #fff;
-  background: linear-gradient(135deg, #26362f, #1c211d);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #17211c;
+  background: #f7f8f4;
+  border: 1px solid #dce3d9;
   border-radius: 8px;
+}
+
+.payment-card svg {
+  color: #167763;
 }
 
 .payment-card p {
   margin-bottom: 2px;
-  color: #cbd6cd;
+  color: #68756e;
   font-size: 0.8rem;
 }
 
@@ -761,7 +729,7 @@ h3 {
 .payment-card small {
   display: block;
   margin-top: 4px;
-  color: #aebdaf;
+  color: #68756e;
   font-size: 0.76rem;
 }
 

@@ -295,7 +295,6 @@ function App() {
   const [northSessionToken, setNorthSessionToken] = useState('');
   const [northMessage, setNorthMessage] = useState('Create a North Fields session when the cart is ready.');
   const [northPaymentResult, setNorthPaymentResult] = useState<NorthCheckoutResult | null>(null);
-  const [northSessionRequest, setNorthSessionRequest] = useState<NorthSessionResponse['request'] | null>(null);
   const northMountRequestId = useRef(0);
 
   const products = useMemo(() => mapNeedsToProducts(analysis.restockNeeds), [analysis]);
@@ -332,7 +331,6 @@ function App() {
     setCheckoutState('cart');
     setNorthState('idle');
     setNorthSessionToken('');
-    setNorthSessionRequest(null);
     setNorthPaymentResult(null);
     setNorthMessage(message);
     setWebhookState('idle');
@@ -513,7 +511,6 @@ function App() {
     if (requestId !== northMountRequestId.current) return;
 
     setNorthSessionToken(session.sessionToken);
-    setNorthSessionRequest(session.request ?? null);
     setNorthMessage('Session created. Mounting North hosted payment fields.');
     await loadNorthCheckoutScript();
     await nextFrame();
@@ -1099,72 +1096,27 @@ function App() {
             </div>
           </div>
 
-          <button
-            className="checkout-button"
-            onClick={startCheckout}
-            disabled={!cartItems.length || northState === 'creating' || northState === 'submitting' || checkoutState === 'paid'}
-          >
-            {checkoutState === 'cart' && northState === 'mounted' && (
-              <>
-                <CreditCard size={18} />
-                Pay with North
-                <ArrowRight size={18} />
-              </>
-            )}
-            {checkoutState === 'cart' && northState !== 'mounted' && northState !== 'error' && (
-              <>
-                <CreditCard size={18} />
-                Prepare North checkout
-                <ArrowRight size={18} />
-              </>
-            )}
-            {checkoutState === 'cart' && northState === 'error' && (
-              <>
-                <CreditCard size={18} />
-                Retry North checkout
-                <ArrowRight size={18} />
-              </>
-            )}
-            {checkoutState === 'paying' && (
-              <>
-                <span className="spinner" />
-                {northState === 'creating' ? 'Preparing North checkout' : 'Authorizing payment'}
-              </>
-            )}
-            {checkoutState === 'paid' && (
-              <>
-                <Check size={18} />
-                Payment approved
-              </>
-            )}
-          </button>
-
           <div className="embedded-checkout" aria-live="polite">
             {northEmbedUrl ? (
               <iframe title="North embedded checkout" src={northEmbedUrl} />
             ) : (
               <>
-                <div className="checkout-frame-top">
-                  <span />
-                  <span />
-                  <span />
-                </div>
                 <div className="payment-card">
                   <ReceiptText size={20} />
                   <div>
-                    <p>North Embedded Checkout</p>
+                    <p>Secure payment</p>
                     <strong>
                       {checkoutState === 'paid'
-                        ? 'Approved and verified'
+                        ? 'Approved'
                         : northState === 'mounted'
-                          ? 'Fields mounted'
+                          ? 'Card entry ready'
                           : northState === 'creating'
-                            ? 'Creating session'
+                            ? 'Preparing checkout'
                             : northState === 'submitting'
-                              ? 'Submitting payment'
+                              ? 'Authorizing payment'
                               : northState === 'error'
-                                ? 'Needs attention'
-                                : 'SDK mount pending'}
+                                ? 'Payment setup needs attention'
+                                : 'Preparing secure card entry'}
                     </strong>
                     <small>{webhookReceipt ? `Webhook ${webhookReceipt.eventId} received` : northMessage}</small>
                   </div>
@@ -1200,7 +1152,7 @@ function App() {
                 )}
                 {checkoutOptions.productList && (
                   <div className="north-mini-list">
-                    <span>Product list</span>
+                    <span>Items in this payment</span>
                     {cartItems.slice(0, 3).map((product) => (
                       <small key={product.id}>{product.item}</small>
                     ))}
@@ -1208,36 +1160,53 @@ function App() {
                 )}
                 {checkoutOptions.paymentSummary && (
                   <div className="north-mini-list">
-                    <span>Payment summary</span>
+                    <span>Payment total</span>
                     <small>{money.format(total)} total</small>
                   </div>
                 )}
-                <div className="north-session-sync">
-                  <strong>North session payload</strong>
-                  <div>
-                    <span>Products</span>
-                    <b>
-                      {checkoutOptions.productList
-                        ? `${northSessionRequest?.products?.length ?? cartItems.length} item${cartItems.length === 1 ? '' : 's'}`
-                        : 'Amount only'}
-                    </b>
-                  </div>
-                  <div>
-                    <span>Subtotal amount</span>
-                    <b>{money.format(northSessionRequest?.amount ?? roundCurrency(subtotal))}</b>
-                  </div>
-                  <div>
-                    <span>Tax</span>
-                    <b>{checkoutOptions.tax ? money.format(northSessionRequest?.tax ?? roundCurrency(tax)) : 'Off'}</b>
-                  </div>
-                  <div>
-                    <span>Service, delivery, tip, promo</span>
-                    <b>{money.format(northSessionRequest?.serviceFee ?? roundCurrency(Math.max(0, deliveryFee + tip - discount)))}</b>
-                  </div>
-                </div>
               </>
             )}
           </div>
+
+          <button
+            className="checkout-button"
+            onClick={startCheckout}
+            disabled={!cartItems.length || northState === 'creating' || northState === 'submitting' || checkoutState === 'paid'}
+          >
+            {checkoutState === 'cart' && northState === 'mounted' && (
+              <>
+                <CreditCard size={18} />
+                Pay {money.format(total)}
+                <ArrowRight size={18} />
+              </>
+            )}
+            {checkoutState === 'cart' && northState !== 'mounted' && northState !== 'error' && (
+              <>
+                <CreditCard size={18} />
+                Prepare secure checkout
+                <ArrowRight size={18} />
+              </>
+            )}
+            {checkoutState === 'cart' && northState === 'error' && (
+              <>
+                <CreditCard size={18} />
+                Retry secure checkout
+                <ArrowRight size={18} />
+              </>
+            )}
+            {checkoutState === 'paying' && (
+              <>
+                <span className="spinner" />
+                {northState === 'creating' ? 'Preparing secure checkout' : 'Authorizing payment'}
+              </>
+            )}
+            {checkoutState === 'paid' && (
+              <>
+                <Check size={18} />
+                Payment approved
+              </>
+            )}
+          </button>
 
           <div className="timeline">
             <TimelineStep done label="Cart built" icon={<ShoppingCart size={16} />} />
