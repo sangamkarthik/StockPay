@@ -40,7 +40,7 @@ Build an app that identifies missing or low-stock pantry/fridge items from an im
 - MealMe access is still pending, so product matching currently uses a local catalog shaped like MealMe search/cart results.
 - North checkout can be prototyped without MealMe access because payment only needs a cart total and checkout/profile SDK details.
 - North webhook confirmation can run in mock mode through `POST /api/north/mock-webhook`; the live-shaped endpoint is `POST /api/north/webhook/transaction`.
-- North Fields checkout should use the Designer for secure payment-field styling, payment methods, domain, webhook base URL, section order, custom fields, and receipt settings. StockPay now mirrors app-side checkout options for contact, delivery address, delivery speed, substitution preference, tip, receipt method, saved weekly restock preference, and mock webhook mode.
+- North Fields checkout should use the Designer for secure payment-field styling, payment methods, domain, webhook base URL, section order, custom fields, and receipt settings. StockPay now mirrors the Designer `options` flags: mobile number, tax, tips, promo code, shipping, billing, payment summary, product list, cardholder name, email, display checkout name, input placeholders, and input labels. It also adds grocery-specific app options for delivery speed, substitution preference, receipt method, saved weekly restock preference, and mock webhook mode.
 - Real grocery fulfillment still needs MealMe sandbox/order access or a separate delivery partner. For the hackathon, use simulated fulfillment after North payment unless sandbox finalization is enabled.
 
 ## Open Questions

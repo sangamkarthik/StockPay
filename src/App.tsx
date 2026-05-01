@@ -10,11 +10,11 @@ import {
   Clock3,
   CreditCard,
   MapPin,
-  MessageSquare,
   Minus,
   Plus,
   ReceiptText,
   SearchCheck,
+  Settings2,
   ShieldCheck,
   ShoppingCart,
   Sparkles,
@@ -87,6 +87,8 @@ type CheckoutOptions = {
   email: string;
   phone: string;
   address: string;
+  billingAddress: string;
+  promoCode: string;
   deliverySpeed: 'standard' | 'priority' | 'scheduled';
   substitution: 'best_match' | 'contact_me' | 'refund_item';
   paymentMethod: 'card' | 'apple_pay' | 'google_pay';
@@ -94,6 +96,19 @@ type CheckoutOptions = {
   tip: number;
   saveForNextRun: boolean;
   mockWebhook: boolean;
+  mobileNumber: boolean;
+  tax: boolean;
+  tips: boolean;
+  promoCodeEnabled: boolean;
+  shipping: boolean;
+  billing: boolean;
+  paymentSummary: boolean;
+  productList: boolean;
+  cardholderName: boolean;
+  emailEnabled: boolean;
+  displayCheckoutName: boolean;
+  displayInputPlaceholders: boolean;
+  displayInputLabels: boolean;
 };
 
 const demoAnalysis: AnalysisResponse = {
@@ -207,6 +222,8 @@ const defaultCheckoutOptions: CheckoutOptions = {
   email: 'karthik@example.com',
   phone: '(555) 010-2048',
   address: '123 Market St, San Francisco, CA',
+  billingAddress: '123 Market St, San Francisco, CA',
+  promoCode: 'STOCK10',
   deliverySpeed: 'standard',
   substitution: 'best_match',
   paymentMethod: 'card',
@@ -214,6 +231,19 @@ const defaultCheckoutOptions: CheckoutOptions = {
   tip: 3,
   saveForNextRun: true,
   mockWebhook: true,
+  mobileNumber: true,
+  tax: true,
+  tips: true,
+  promoCodeEnabled: true,
+  shipping: true,
+  billing: true,
+  paymentSummary: true,
+  productList: true,
+  cardholderName: true,
+  emailEnabled: true,
+  displayCheckoutName: true,
+  displayInputPlaceholders: true,
+  displayInputLabels: true,
 };
 
 function App() {
@@ -242,9 +272,11 @@ function App() {
       }, 0),
     [cartItems, cart],
   );
-  const deliveryFee = cartItems.length ? deliveryFeeFor(checkoutOptions.deliverySpeed) : 0;
-  const tip = cartItems.length ? checkoutOptions.tip : 0;
-  const total = subtotal + deliveryFee + tip;
+  const deliveryFee = cartItems.length && checkoutOptions.shipping ? deliveryFeeFor(checkoutOptions.deliverySpeed) : 0;
+  const tax = cartItems.length && checkoutOptions.tax ? subtotal * 0.0825 : 0;
+  const tip = cartItems.length && checkoutOptions.tips ? checkoutOptions.tip : 0;
+  const discount = cartItems.length && checkoutOptions.promoCodeEnabled && checkoutOptions.promoCode.toUpperCase() === 'STOCK10' ? Math.min(10, subtotal * 0.1) : 0;
+  const total = Math.max(0, subtotal + deliveryFee + tax + tip - discount);
   const fastestEta = cartItems[0]?.eta.replace(' min', 'm') ?? '0m';
   const addNowItems = weeklyStock?.items.filter((item) => item.recommendation === 'add_to_cart') ?? [];
 
@@ -325,6 +357,19 @@ function App() {
           amount: Math.round(total * 100),
           currency: 'USD',
           checkoutOptions: {
+            mobileNumber: checkoutOptions.mobileNumber,
+            tax: checkoutOptions.tax,
+            tips: checkoutOptions.tips,
+            promoCode: checkoutOptions.promoCodeEnabled,
+            shipping: checkoutOptions.shipping,
+            billing: checkoutOptions.billing,
+            paymentSummary: checkoutOptions.paymentSummary,
+            productList: checkoutOptions.productList,
+            cardholderName: checkoutOptions.cardholderName,
+            email: checkoutOptions.emailEnabled,
+            displayCheckoutName: checkoutOptions.displayCheckoutName,
+            displayInputPlaceholders: checkoutOptions.displayInputPlaceholders,
+            displayInputLabels: checkoutOptions.displayInputLabels,
             deliverySpeed: checkoutOptions.deliverySpeed,
             substitution: checkoutOptions.substitution,
             paymentMethod: checkoutOptions.paymentMethod,
@@ -531,6 +576,18 @@ function App() {
               <span>Delivery</span>
               <strong>{money.format(deliveryFee)}</strong>
             </div>
+            {checkoutOptions.tax && (
+              <div>
+                <span>Estimated tax</span>
+                <strong>{money.format(tax)}</strong>
+              </div>
+            )}
+            {checkoutOptions.promoCodeEnabled && (
+              <div>
+                <span>Promo discount</span>
+                <strong>-{money.format(discount)}</strong>
+              </div>
+            )}
             <div>
               <span>Courier tip</span>
               <strong>{money.format(tip)}</strong>
@@ -545,41 +602,73 @@ function App() {
             <div className="option-heading">
               <div>
                 <p className="eyebrow">Checkout options</p>
-                <h3>Delivery and receipt</h3>
+                <h3>North Fields options</h3>
               </div>
-              <MessageSquare size={18} />
+              <Settings2 size={18} />
             </div>
 
             <div className="field-grid">
-              <label>
-                <span>Name</span>
-                <input
-                  value={checkoutOptions.customerName}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, customerName: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>Email</span>
-                <input
-                  type="email"
-                  value={checkoutOptions.email}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, email: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>Phone</span>
-                <input
-                  value={checkoutOptions.phone}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, phone: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>Address</span>
-                <input
-                  value={checkoutOptions.address}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, address: event.target.value })}
-                />
-              </label>
+              {checkoutOptions.cardholderName && (
+                <label>
+                  {checkoutOptions.displayInputLabels && <span>Name</span>}
+                  <input
+                    placeholder={checkoutOptions.displayInputPlaceholders ? 'Cardholder name' : ''}
+                    value={checkoutOptions.customerName}
+                    onChange={(event) => setCheckoutOptions({ ...checkoutOptions, customerName: event.target.value })}
+                  />
+                </label>
+              )}
+              {checkoutOptions.emailEnabled && (
+                <label>
+                  {checkoutOptions.displayInputLabels && <span>Email</span>}
+                  <input
+                    type="email"
+                    placeholder={checkoutOptions.displayInputPlaceholders ? 'name@example.com' : ''}
+                    value={checkoutOptions.email}
+                    onChange={(event) => setCheckoutOptions({ ...checkoutOptions, email: event.target.value })}
+                  />
+                </label>
+              )}
+              {checkoutOptions.mobileNumber && (
+                <label>
+                  {checkoutOptions.displayInputLabels && <span>Mobile</span>}
+                  <input
+                    placeholder={checkoutOptions.displayInputPlaceholders ? '(555) 010-0000' : ''}
+                    value={checkoutOptions.phone}
+                    onChange={(event) => setCheckoutOptions({ ...checkoutOptions, phone: event.target.value })}
+                  />
+                </label>
+              )}
+              {checkoutOptions.shipping && (
+                <label>
+                  {checkoutOptions.displayInputLabels && <span>Shipping</span>}
+                  <input
+                    placeholder={checkoutOptions.displayInputPlaceholders ? 'Delivery address' : ''}
+                    value={checkoutOptions.address}
+                    onChange={(event) => setCheckoutOptions({ ...checkoutOptions, address: event.target.value })}
+                  />
+                </label>
+              )}
+              {checkoutOptions.billing && (
+                <label>
+                  {checkoutOptions.displayInputLabels && <span>Billing</span>}
+                  <input
+                    placeholder={checkoutOptions.displayInputPlaceholders ? 'Billing address' : ''}
+                    value={checkoutOptions.billingAddress}
+                    onChange={(event) => setCheckoutOptions({ ...checkoutOptions, billingAddress: event.target.value })}
+                  />
+                </label>
+              )}
+              {checkoutOptions.promoCodeEnabled && (
+                <label>
+                  {checkoutOptions.displayInputLabels && <span>Promo</span>}
+                  <input
+                    placeholder={checkoutOptions.displayInputPlaceholders ? 'Promo code' : ''}
+                    value={checkoutOptions.promoCode}
+                    onChange={(event) => setCheckoutOptions({ ...checkoutOptions, promoCode: event.target.value })}
+                  />
+                </label>
+              )}
             </div>
 
             <OptionGroup label="Payment method">
@@ -653,7 +742,8 @@ function App() {
               </label>
             </div>
 
-            <OptionGroup label="Courier tip">
+            {checkoutOptions.tips && (
+              <OptionGroup label="Courier tip">
               {[0, 3, 5, 8].map((amount) => (
                 <SegmentedButton
                   key={amount}
@@ -662,9 +752,118 @@ function App() {
                   onClick={() => setCheckoutOptions({ ...checkoutOptions, tip: amount })}
                 />
               ))}
-            </OptionGroup>
+              </OptionGroup>
+            )}
 
             <div className="toggle-list">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.mobileNumber}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, mobileNumber: event.target.checked })}
+                />
+                Mobile number
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.emailEnabled}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, emailEnabled: event.target.checked })}
+                />
+                Email field
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.cardholderName}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, cardholderName: event.target.checked })}
+                />
+                Cardholder name
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.shipping}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, shipping: event.target.checked })}
+                />
+                Shipping
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.billing}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, billing: event.target.checked })}
+                />
+                Billing
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.tax}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, tax: event.target.checked })}
+                />
+                Tax
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.tips}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, tips: event.target.checked })}
+                />
+                Tips
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.promoCodeEnabled}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, promoCodeEnabled: event.target.checked })}
+                />
+                Promo code
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.paymentSummary}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, paymentSummary: event.target.checked })}
+                />
+                Payment summary
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.productList}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, productList: event.target.checked })}
+                />
+                Product list
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.displayCheckoutName}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, displayCheckoutName: event.target.checked })}
+                />
+                Display checkout name
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.displayInputPlaceholders}
+                  onChange={(event) =>
+                    setCheckoutOptions({ ...checkoutOptions, displayInputPlaceholders: event.target.checked })
+                  }
+                />
+                Input placeholders
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.displayInputLabels}
+                  onChange={(event) =>
+                    setCheckoutOptions({ ...checkoutOptions, displayInputLabels: event.target.checked })
+                  }
+                />
+                Input labels
+              </label>
               <label>
                 <input
                   type="checkbox"
@@ -736,6 +935,43 @@ function App() {
                     </small>
                   </div>
                 </div>
+                <div className="north-fields-preview">
+                  {checkoutOptions.displayCheckoutName && <strong>StockPay Fields Checkout</strong>}
+                  {checkoutOptions.cardholderName && (
+                    <div>
+                      {checkoutOptions.displayInputLabels && <span>Cardholder name</span>}
+                      <em>{checkoutOptions.displayInputPlaceholders ? checkoutOptions.customerName : ''}</em>
+                    </div>
+                  )}
+                  <div>
+                    {checkoutOptions.displayInputLabels && <span>Card number</span>}
+                    <em>{checkoutOptions.displayInputPlaceholders ? '4242 4242 4242 4242' : ''}</em>
+                  </div>
+                  <div className="north-field-pair">
+                    <div>
+                      {checkoutOptions.displayInputLabels && <span>Expiry</span>}
+                      <em>{checkoutOptions.displayInputPlaceholders ? 'MM / YY' : ''}</em>
+                    </div>
+                    <div>
+                      {checkoutOptions.displayInputLabels && <span>CVV</span>}
+                      <em>{checkoutOptions.displayInputPlaceholders ? '123' : ''}</em>
+                    </div>
+                  </div>
+                </div>
+                {checkoutOptions.productList && (
+                  <div className="north-mini-list">
+                    <span>Product list</span>
+                    {cartItems.slice(0, 3).map((product) => (
+                      <small key={product.id}>{product.item}</small>
+                    ))}
+                  </div>
+                )}
+                {checkoutOptions.paymentSummary && (
+                  <div className="north-mini-list">
+                    <span>Payment summary</span>
+                    <small>{money.format(total)} total</small>
+                  </div>
+                )}
               </>
             )}
           </div>

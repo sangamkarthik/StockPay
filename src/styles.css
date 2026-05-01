@@ -538,6 +538,7 @@ h3 {
 
 .toggle-list {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -550,6 +551,71 @@ h3 {
 
 .toggle-list input {
   accent-color: #167763;
+}
+
+.north-fields-preview {
+  display: grid;
+  gap: 9px;
+  margin: 0 12px 12px;
+  padding: 12px;
+  color: #dfe8df;
+  background: #151a16;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.north-fields-preview > strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #fff;
+  font-size: 0.86rem;
+}
+
+.north-fields-preview div {
+  display: grid;
+  gap: 5px;
+}
+
+.north-fields-preview span,
+.north-mini-list span {
+  color: #aebdaf;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.north-fields-preview em {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  padding: 0 10px;
+  color: #edf4ed;
+  background: #202820;
+  border: 1px solid #334238;
+  border-radius: 8px;
+  font-style: normal;
+}
+
+.north-field-pair {
+  grid-template-columns: 1fr 0.72fr;
+}
+
+.north-mini-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  margin: 0 12px 12px;
+  padding: 10px 12px;
+  background: #151a16;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.north-mini-list small {
+  padding: 4px 8px;
+  color: #edf4ed;
+  background: #26362f;
+  border-radius: 999px;
 }
 
 .checkout-button {
@@ -811,7 +877,8 @@ h3 {
   .signal-grid,
   .trend-metrics,
   .field-grid,
-  .field-grid.compact {
+  .field-grid.compact,
+  .toggle-list {
     grid-template-columns: 1fr;
   }
 
