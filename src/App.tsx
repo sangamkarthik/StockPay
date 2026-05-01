@@ -3,7 +3,6 @@ import {
   ArrowRight,
   Bell,
   Bookmark,
-  Camera,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -12,10 +11,8 @@ import {
   Heart,
   Home,
   Leaf,
-  Minus,
   PackageCheck,
   Play,
-  Plus,
   ReceiptText,
   ScanLine,
   Search,
@@ -25,26 +22,34 @@ import {
   ShoppingCart,
   Sparkles,
   Star,
-  Truck,
-  Upload,
   Utensils,
-  X,
 } from 'lucide-react';
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 type Page = 'landing' | 'dashboard' | 'recipe';
 
 type AnalysisResponse = {
-  source: 'openai' | 'demo';
+  source: 'yolo' | 'openai' | 'demo';
+  model: string;
   detectedItems: number;
-  restockNeeds: Array<{
+  detectedIngredients: Array<{
     item: string;
-    query: string;
-    status: 'missing' | 'low' | 'substitute';
     confidence: number;
-    reason: string;
-    qty: number;
+    box?: {
+      x?: number;
+      y?: number;
+      width?: number;
+      height?: number;
+    };
   }>;
+  recipe: {
+    title: string;
+    requiredIngredients: string[];
+    matchedIngredients: string[];
+    missingIngredients: MissingProduct[];
+    matchScore: number;
+  };
+  summary: string;
 };
 
 type MissingProduct = {
@@ -127,7 +132,7 @@ const pantryIngredients = [
   'Beans',
 ];
 
-const missingProducts: MissingProduct[] = [
+const defaultMissingProducts: MissingProduct[] = [
   {
     id: 'heavy-cream',
     name: 'Heavy Cream',
@@ -217,6 +222,7 @@ function App() {
   const [scanState, setScanState] = useState<'idle' | 'scanning' | 'ready' | 'error'>('idle');
   const [imageUrl, setImageUrl] = useState('');
   const [detectedIngredients, setDetectedIngredients] = useState(pantryIngredients.slice(0, 8));
+  const [missingIngredients, setMissingIngredients] = useState(defaultMissingProducts);
   const [scanMessage, setScanMessage] = useState('Scan your pantry to let YOLO-style vision build recipe matches.');
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutState, setCheckoutState] = useState<'cart' | 'paying' | 'paid'>('cart');
@@ -229,8 +235,8 @@ function App() {
   const northMountRequestId = useRef(0);
 
   const subtotal = useMemo(
-    () => missingProducts.reduce((sum, product) => sum + product.price * product.quantity, 0),
-    [],
+    () => missingIngredients.reduce((sum, product) => sum + product.price * product.quantity, 0),
+    [missingIngredients],
   );
   const tax = subtotal * 0.0825;
   const deliveryFee = 4.99;
@@ -259,24 +265,21 @@ function App() {
     formData.append('image', file);
 
     try {
-      const response = await fetch('/api/analyze-fridge', {
+      const response = await fetch('/api/analyze-pantry', {
         method: 'POST',
         body: formData,
       });
       const result = (await response.json()) as AnalysisResponse;
-      const detected = [
-        ...pantryIngredients.slice(0, 8),
-        ...result.restockNeeds.map((need) => need.item).filter(Boolean),
-      ];
+      const detected = result.detectedIngredients.map((ingredient) => ingredient.item).filter(Boolean);
 
       setDetectedIngredients(Array.from(new Set(detected)).slice(0, 12));
+      setMissingIngredients(result.recipe?.missingIngredients?.length ? result.recipe.missingIngredients : defaultMissingProducts);
       setScanState('ready');
-      setScanMessage(
-        `${result.source === 'openai' ? 'Vision API' : 'Demo YOLO'} detected ${result.detectedItems} pantry signals. Recipe matches updated.`,
-      );
+      setScanMessage(result.summary || `${result.source.toUpperCase()} detected ${result.detectedItems} pantry signals. Recipe matches updated.`);
       setPage('dashboard');
     } catch {
       setDetectedIngredients(pantryIngredients);
+      setMissingIngredients(defaultMissingProducts);
       setScanState('ready');
       setScanMessage('Demo YOLO pantry results loaded. Recipe matches are ready.');
       setPage('dashboard');
@@ -297,10 +300,10 @@ function App() {
       recipe: 'Creamy Garlic Pasta',
       source: 'recipe-remix',
       detectedIngredients,
-      missingIngredients: missingProducts.map((product) => product.name),
+      missingIngredients: missingIngredients.map((product) => product.name),
       checkoutContext: 'Buy Missing Ingredients',
     },
-    products: missingProducts.map((product) => ({
+    products: missingIngredients.map((product) => ({
       id: product.id,
       name: product.name,
       quantity: product.quantity,
@@ -367,7 +370,7 @@ function App() {
       body: JSON.stringify({
         amount: Math.round(total * 100),
         currency: 'USD',
-        cartItems: missingProducts.map((product) => ({
+        cartItems: missingIngredients.map((product) => ({
           id: product.id,
           name: product.name,
           quantity: product.quantity,
@@ -471,6 +474,7 @@ function App() {
           checkoutOpen={checkoutOpen}
           checkoutState={checkoutState}
           detectedIngredients={detectedIngredients}
+          missingIngredients={missingIngredients}
           northMessage={northMessage}
           northState={northState}
           onBack={() => setPage('dashboard')}
@@ -684,6 +688,7 @@ function RecipePage({
   checkoutOpen,
   checkoutState,
   detectedIngredients,
+  missingIngredients,
   northMessage,
   northState,
   onBack,
@@ -699,6 +704,7 @@ function RecipePage({
   checkoutOpen: boolean;
   checkoutState: 'cart' | 'paying' | 'paid';
   detectedIngredients: string[];
+  missingIngredients: MissingProduct[];
   northMessage: string;
   northState: 'idle' | 'creating' | 'mounted' | 'submitting' | 'approved' | 'error';
   onBack: () => void;
@@ -777,11 +783,11 @@ function RecipePage({
 
           <div className="missing-card">
             <h2>
-              Missing <span>2 ingredients</span>
+              Missing <span>{missingIngredients.length} ingredients</span>
             </h2>
             <p>Add missing ingredients to cook this recipe.</p>
             <div className="missing-icons">
-              {missingProducts.map((product) => (
+              {missingIngredients.map((product) => (
                 <img key={product.id} src={product.image} alt={product.name} />
               ))}
             </div>
@@ -798,7 +804,7 @@ function RecipePage({
             </div>
             <IngredientGroup title="Have all" tone="green" items={detectedIngredients.slice(0, 5)} />
             <IngredientGroup title="Have some" tone="gold" items={['Heavy Cream', 'Parmesan Cheese']} />
-            <IngredientGroup title="Missing" tone="red" items={['Butter', 'Salt', 'Black Pepper']} withCart />
+            <IngredientGroup title="Missing" tone="red" items={missingIngredients.map((product) => product.name)} withCart />
           </div>
 
           {checkoutOpen && (
@@ -812,7 +818,7 @@ function RecipePage({
               </div>
 
               <div className="checkout-lines">
-                {missingProducts.map((product) => (
+                {missingIngredients.map((product) => (
                   <div key={product.id}>
                     <span>
                       {product.quantity} x {product.name}

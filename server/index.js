@@ -5,6 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { analyzeFridgeImage, weeklyStockDemo } from './stockpay-api.js';
+import { analyzePantryImage } from './pantry-vision.js';
 import { createNorthSession, getNorthSessionStatus } from './north-checkout.js';
 import { createMockNorthTransactionEvent, handleNorthTransactionEvent } from './north-webhook.js';
 
@@ -32,6 +33,22 @@ app.post('/api/analyze-fridge', upload.single('image'), async (req, res) => {
     console.error(error);
     res.status(error.message === 'Upload an image file.' ? 400 : 500).json({
       error: error.message || 'Image analysis failed.',
+    });
+  }
+});
+
+app.post('/api/analyze-pantry', upload.single('image'), async (req, res) => {
+  try {
+    const result = await analyzePantryImage({
+      buffer: req.file?.buffer,
+      mimetype: req.file?.mimetype,
+    });
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(error.message === 'Upload an image file.' ? 400 : error.status || 500).json({
+      error: error.message || 'Pantry analysis failed.',
+      details: error.payload,
     });
   }
 });
