@@ -39,6 +39,7 @@ Build an app that identifies missing or low-stock pantry/fridge items from an im
 - Weekly stock history is wired to `GET /api/weekly-stock-demo`, which returns a YOLO/Ultralytics-compatible detection contract: item names, week-by-week fill levels, current stock percent, predicted days to empty, confidence, and a cart recommendation.
 - MealMe access is still pending, so product matching currently uses a local catalog shaped like MealMe search/cart results.
 - North checkout can be prototyped without MealMe access because payment only needs a cart total and checkout/profile SDK details.
+- North webhook confirmation can run in mock mode through `POST /api/north/mock-webhook`; the live-shaped endpoint is `POST /api/north/webhook/transaction`.
 - Real grocery fulfillment still needs MealMe sandbox/order access or a separate delivery partner. For the hackathon, use simulated fulfillment after North payment unless sandbox finalization is enabled.
 
 ## Open Questions

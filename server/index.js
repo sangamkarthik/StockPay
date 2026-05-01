@@ -5,6 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { analyzeFridgeImage, weeklyStockDemo } from './stockpay-api.js';
+import { createMockNorthTransactionEvent, handleNorthTransactionEvent } from './north-webhook.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -16,6 +17,8 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
 });
+
+app.use(express.json());
 
 app.post('/api/analyze-fridge', upload.single('image'), async (req, res) => {
   try {
@@ -34,6 +37,21 @@ app.post('/api/analyze-fridge', upload.single('image'), async (req, res) => {
 
 app.get('/api/weekly-stock-demo', (_req, res) => {
   res.json(weeklyStockDemo);
+});
+
+app.post('/api/north/mock-webhook', (req, res) => {
+  const event = createMockNorthTransactionEvent(req.body);
+  const receipt = handleNorthTransactionEvent(event, { source: 'mock-webhook' });
+
+  res.json({
+    ...receipt,
+    event,
+  });
+});
+
+app.post('/api/north/webhook/transaction', (req, res) => {
+  const receipt = handleNorthTransactionEvent(req.body, { source: 'north-webhook' });
+  res.json(receipt);
 });
 
 if (isProduction) {

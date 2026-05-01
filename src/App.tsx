@@ -11,7 +11,6 @@ import {
   CreditCard,
   MapPin,
   Minus,
-  PackageCheck,
   Plus,
   ReceiptText,
   SearchCheck,
@@ -68,6 +67,18 @@ type WeeklyStockResponse = {
   model: string;
   summary: string;
   items: WeeklyTrendItem[];
+};
+
+type WebhookReceipt = {
+  received: boolean;
+  mode: string;
+  source: string;
+  eventId: string;
+  eventType: string;
+  transactionId: string;
+  paymentStatus: string;
+  fulfillmentStatus: string;
+  receivedAt: string;
 };
 
 const demoAnalysis: AnalysisResponse = {
@@ -182,6 +193,8 @@ function App() {
   const [scanState, setScanState] = useState<'idle' | 'scanning' | 'ready' | 'error'>('idle');
   const [cart, setCart] = useState<Record<string, number>>({});
   const [checkoutState, setCheckoutState] = useState<'cart' | 'paying' | 'paid'>('cart');
+  const [webhookState, setWebhookState] = useState<'idle' | 'sending' | 'received' | 'error'>('idle');
+  const [webhookReceipt, setWebhookReceipt] = useState<WebhookReceipt | null>(null);
   const [scanMessage, setScanMessage] = useState('Demo data is ready until a photo is uploaded.');
   const [weeklyStock, setWeeklyStock] = useState<WeeklyStockResponse | null>(null);
 
@@ -218,6 +231,8 @@ function App() {
     setImageUrl(URL.createObjectURL(file));
     setScanState('scanning');
     setCheckoutState('cart');
+    setWebhookState('idle');
+    setWebhookReceipt(null);
     setScanMessage('Analyzing visible items and estimating refill needs.');
 
     const formData = new FormData();
@@ -257,10 +272,42 @@ function App() {
     }));
   };
 
-  const startCheckout = () => {
+  const startCheckout = async () => {
     if (!cartItems.length) return;
     setCheckoutState('paying');
-    window.setTimeout(() => setCheckoutState('paid'), 1400);
+    setWebhookState('sending');
+    setWebhookReceipt(null);
+
+    await new Promise((resolve) => window.setTimeout(resolve, 900));
+
+    try {
+      const response = await fetch('/api/north/mock-webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: Math.round(total * 100),
+          currency: 'USD',
+          cartItems: cartItems.map((product) => ({
+            id: product.id,
+            name: product.item,
+            quantity: cart[product.id] ?? product.qty,
+            unitPrice: Math.round(product.price * 100),
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Webhook simulation failed');
+      }
+
+      const receipt = (await response.json()) as WebhookReceipt;
+      setWebhookReceipt(receipt);
+      setWebhookState('received');
+      setCheckoutState('paid');
+    } catch {
+      setWebhookState('error');
+      setCheckoutState('cart');
+    }
   };
 
   const useMonthlyTrend = () => {
@@ -283,6 +330,8 @@ function App() {
     setCart(Object.fromEntries(restockNeeds.map((need) => [idFor(need.item), need.qty])));
     setScanState('ready');
     setCheckoutState('cart');
+    setWebhookState('idle');
+    setWebhookReceipt(null);
     setScanMessage('Monthly stock trend loaded into the cart using the YOLO-compatible demo backend.');
   };
 
@@ -480,9 +529,17 @@ function App() {
                   <ReceiptText size={20} />
                   <div>
                     <p>North Embedded Checkout</p>
-                    <strong>{checkoutState === 'paid' ? 'Approved' : 'SDK mount pending'}</strong>
+                    <strong>
+                      {checkoutState === 'paid'
+                        ? 'Approved and verified'
+                        : webhookState === 'sending'
+                          ? 'Waiting for webhook'
+                          : 'SDK mount pending'}
+                    </strong>
                     <small>
-                      {northCheckoutId && northProfileId
+                      {webhookReceipt
+                        ? `Webhook ${webhookReceipt.eventId} received`
+                        : northCheckoutId && northProfileId
                         ? `Checkout ${northCheckoutId} ready for SDK wiring`
                         : 'Add checkout/profile IDs when North sends them'}
                     </small>
@@ -495,8 +552,8 @@ function App() {
           <div className="timeline">
             <TimelineStep done label="Cart built" icon={<ShoppingCart size={16} />} />
             <TimelineStep done={checkoutState !== 'cart'} label="Payment authorized" icon={<CheckCircle2 size={16} />} />
+            <TimelineStep done={webhookState === 'received'} label="Webhook received" icon={<ReceiptText size={16} />} />
             <TimelineStep done={checkoutState === 'paid'} label="Fulfillment sandbox" icon={<Truck size={16} />} />
-            <TimelineStep done={checkoutState === 'paid'} label="Restock delivered" icon={<PackageCheck size={16} />} />
           </div>
         </aside>
       </section>
