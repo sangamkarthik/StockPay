@@ -25,7 +25,7 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 type RestockNeed = {
   item: string;
@@ -296,6 +296,7 @@ function App() {
   const [northMessage, setNorthMessage] = useState('Create a North Fields session when the cart is ready.');
   const [northPaymentResult, setNorthPaymentResult] = useState<NorthCheckoutResult | null>(null);
   const [northSessionRequest, setNorthSessionRequest] = useState<NorthSessionResponse['request'] | null>(null);
+  const northMountRequestId = useRef(0);
 
   const products = useMemo(() => mapNeedsToProducts(analysis.restockNeeds), [analysis]);
 
@@ -327,6 +328,7 @@ function App() {
   }, []);
 
   const resetNorthSession = (message = 'Create a North Fields session when the cart is ready.') => {
+    northMountRequestId.current += 1;
     setCheckoutState('cart');
     setNorthState('idle');
     setNorthSessionToken('');
@@ -341,7 +343,7 @@ function App() {
     setCheckoutOptions(nextOptions);
 
     if (northState !== 'idle') {
-      resetNorthSession('Checkout options changed. Start North Fields again so North receives the updated cart, tax, and fee settings.');
+      resetNorthSession('Checkout options changed. Rebuilding the North session with the latest cart, tax, and fee settings.');
     }
   };
 
@@ -491,6 +493,7 @@ function App() {
   };
 
   const createAndMountNorthFields = async () => {
+    const requestId = ++northMountRequestId.current;
     setCheckoutState('paying');
     setNorthState('creating');
     setNorthMessage('Creating a short-lived North checkout session.');
@@ -507,11 +510,15 @@ function App() {
       throw new Error(session.error || 'North session did not return a mountable token.');
     }
 
+    if (requestId !== northMountRequestId.current) return;
+
     setNorthSessionToken(session.sessionToken);
     setNorthSessionRequest(session.request ?? null);
     setNorthMessage('Session created. Mounting North hosted payment fields.');
     await loadNorthCheckoutScript();
     await nextFrame();
+
+    if (requestId !== northMountRequestId.current) return;
 
     const container = document.getElementById(northFieldsContainerId);
     if (container) {
@@ -542,7 +549,7 @@ function App() {
 
     setNorthState('mounted');
     setCheckoutState('cart');
-    setNorthMessage('North Fields are mounted. Enter the sandbox card and submit payment.');
+    setNorthMessage('North Fields are ready. Enter the sandbox card and pay.');
   };
 
   const submitNorthPayment = async () => {
@@ -593,6 +600,21 @@ function App() {
       setNorthMessage(error instanceof Error ? error.message : 'North checkout failed.');
     }
   };
+
+  useEffect(() => {
+    if (northEmbedUrl || checkoutState === 'paid' || northState !== 'idle' || !cartItems.length) return;
+
+    const timer = window.setTimeout(() => {
+      createAndMountNorthFields().catch((error) => {
+        setCheckoutState('cart');
+        setNorthState('error');
+        setWebhookState('error');
+        setNorthMessage(error instanceof Error ? error.message : 'North checkout failed.');
+      });
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [cartItems, checkoutOptions, checkoutState, deliveryFee, discount, northState, subtotal, tax, tip]);
 
   const useMonthlyTrend = () => {
     if (!weeklyStock) return;
@@ -1082,24 +1104,31 @@ function App() {
             onClick={startCheckout}
             disabled={!cartItems.length || northState === 'creating' || northState === 'submitting' || checkoutState === 'paid'}
           >
-            {checkoutState === 'cart' && northState !== 'mounted' && (
-              <>
-                <CreditCard size={18} />
-                Start North Fields
-                <ArrowRight size={18} />
-              </>
-            )}
             {checkoutState === 'cart' && northState === 'mounted' && (
               <>
                 <CreditCard size={18} />
-                Submit North payment
+                Pay with North
+                <ArrowRight size={18} />
+              </>
+            )}
+            {checkoutState === 'cart' && northState !== 'mounted' && northState !== 'error' && (
+              <>
+                <CreditCard size={18} />
+                Prepare North checkout
+                <ArrowRight size={18} />
+              </>
+            )}
+            {checkoutState === 'cart' && northState === 'error' && (
+              <>
+                <CreditCard size={18} />
+                Retry North checkout
                 <ArrowRight size={18} />
               </>
             )}
             {checkoutState === 'paying' && (
               <>
                 <span className="spinner" />
-                {northState === 'creating' ? 'Mounting North Fields' : 'Authorizing payment'}
+                {northState === 'creating' ? 'Preparing North checkout' : 'Authorizing payment'}
               </>
             )}
             {checkoutState === 'paid' && (
@@ -1212,7 +1241,7 @@ function App() {
 
           <div className="timeline">
             <TimelineStep done label="Cart built" icon={<ShoppingCart size={16} />} />
-            <TimelineStep done={checkoutState !== 'cart'} label="Payment authorized" icon={<CheckCircle2 size={16} />} />
+            <TimelineStep done={checkoutState === 'paid'} label="Payment authorized" icon={<CheckCircle2 size={16} />} />
             <TimelineStep done={webhookState === 'received'} label="Webhook received" icon={<ReceiptText size={16} />} />
             <TimelineStep done={checkoutState === 'paid'} label="Fulfillment sandbox" icon={<Truck size={16} />} />
           </div>
