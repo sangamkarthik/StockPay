@@ -24,7 +24,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -425,7 +426,7 @@ h3 {
 .totals {
   display: grid;
   gap: 10px;
-  margin: 18px 0;
+  margin: 18px 0 12px;
   padding: 14px;
   background: #f7f8f4;
   border-radius: 8px;
@@ -439,6 +440,116 @@ h3 {
   padding-top: 10px;
   border-top: 1px solid #dfe5dc;
   font-size: 1.1rem;
+}
+
+.checkout-options {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  background: #fffdfa;
+  border: 1px solid #e5e2d9;
+  border-radius: 8px;
+}
+
+.option-heading,
+.option-group > div,
+.toggle-list label {
+  display: flex;
+  align-items: center;
+}
+
+.option-heading {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.option-heading h3 {
+  font-size: 0.98rem;
+}
+
+.option-heading svg {
+  color: #167763;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.field-grid label,
+.option-group {
+  display: grid;
+  gap: 6px;
+}
+
+.field-grid label > span,
+.option-group > span {
+  color: #68756e;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.field-grid input,
+.field-grid select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  color: #17211c;
+  background: #f8faf6;
+  border: 1px solid #dce3d9;
+  border-radius: 8px;
+  outline: 0;
+}
+
+.field-grid input:focus,
+.field-grid select:focus {
+  border-color: #167763;
+  box-shadow: 0 0 0 3px rgba(22, 119, 99, 0.13);
+}
+
+.field-grid.compact {
+  grid-template-columns: 1fr 1fr;
+}
+
+.option-group > div {
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.option-group button {
+  min-height: 34px;
+  padding: 0 10px;
+  color: #53615a;
+  background: #f7f8f4;
+  border: 1px solid #dce3d9;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.option-group button.active {
+  color: #fff;
+  background: #167763;
+  border-color: #167763;
+}
+
+.toggle-list {
+  display: grid;
+  gap: 8px;
+}
+
+.toggle-list label {
+  gap: 8px;
+  color: #53615a;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.toggle-list input {
+  accent-color: #167763;
 }
 
 .checkout-button {
@@ -698,7 +809,9 @@ h3 {
 
   .workspace,
   .signal-grid,
-  .trend-metrics {
+  .trend-metrics,
+  .field-grid,
+  .field-grid.compact {
     grid-template-columns: 1fr;
   }
 

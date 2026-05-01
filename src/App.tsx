@@ -10,6 +10,7 @@ import {
   Clock3,
   CreditCard,
   MapPin,
+  MessageSquare,
   Minus,
   Plus,
   ReceiptText,
@@ -79,6 +80,20 @@ type WebhookReceipt = {
   paymentStatus: string;
   fulfillmentStatus: string;
   receivedAt: string;
+};
+
+type CheckoutOptions = {
+  customerName: string;
+  email: string;
+  phone: string;
+  address: string;
+  deliverySpeed: 'standard' | 'priority' | 'scheduled';
+  substitution: 'best_match' | 'contact_me' | 'refund_item';
+  paymentMethod: 'card' | 'apple_pay' | 'google_pay';
+  receiptMethod: 'email' | 'sms' | 'both';
+  tip: number;
+  saveForNextRun: boolean;
+  mockWebhook: boolean;
 };
 
 const demoAnalysis: AnalysisResponse = {
@@ -187,6 +202,20 @@ const northEmbedUrl = import.meta.env.VITE_NORTH_EMBED_URL as string | undefined
 const northCheckoutId = import.meta.env.VITE_NORTH_CHECKOUT_ID as string | undefined;
 const northProfileId = import.meta.env.VITE_NORTH_PROFILE_ID as string | undefined;
 
+const defaultCheckoutOptions: CheckoutOptions = {
+  customerName: 'Karthik Sangam',
+  email: 'karthik@example.com',
+  phone: '(555) 010-2048',
+  address: '123 Market St, San Francisco, CA',
+  deliverySpeed: 'standard',
+  substitution: 'best_match',
+  paymentMethod: 'card',
+  receiptMethod: 'email',
+  tip: 3,
+  saveForNextRun: true,
+  mockWebhook: true,
+};
+
 function App() {
   const [imageUrl, setImageUrl] = useState('');
   const [analysis, setAnalysis] = useState<AnalysisResponse>(demoAnalysis);
@@ -197,6 +226,7 @@ function App() {
   const [webhookReceipt, setWebhookReceipt] = useState<WebhookReceipt | null>(null);
   const [scanMessage, setScanMessage] = useState('Demo data is ready until a photo is uploaded.');
   const [weeklyStock, setWeeklyStock] = useState<WeeklyStockResponse | null>(null);
+  const [checkoutOptions, setCheckoutOptions] = useState<CheckoutOptions>(defaultCheckoutOptions);
 
   const products = useMemo(() => mapNeedsToProducts(analysis.restockNeeds), [analysis]);
 
@@ -212,8 +242,9 @@ function App() {
       }, 0),
     [cartItems, cart],
   );
-  const fees = cartItems.length ? 4.99 : 0;
-  const total = subtotal + fees;
+  const deliveryFee = cartItems.length ? deliveryFeeFor(checkoutOptions.deliverySpeed) : 0;
+  const tip = cartItems.length ? checkoutOptions.tip : 0;
+  const total = subtotal + deliveryFee + tip;
   const fastestEta = cartItems[0]?.eta.replace(' min', 'm') ?? '0m';
   const addNowItems = weeklyStock?.items.filter((item) => item.recommendation === 'add_to_cart') ?? [];
 
@@ -280,6 +311,12 @@ function App() {
 
     await new Promise((resolve) => window.setTimeout(resolve, 900));
 
+    if (!checkoutOptions.mockWebhook) {
+      setCheckoutState('paid');
+      setWebhookState('idle');
+      return;
+    }
+
     try {
       const response = await fetch('/api/north/mock-webhook', {
         method: 'POST',
@@ -287,6 +324,13 @@ function App() {
         body: JSON.stringify({
           amount: Math.round(total * 100),
           currency: 'USD',
+          checkoutOptions: {
+            deliverySpeed: checkoutOptions.deliverySpeed,
+            substitution: checkoutOptions.substitution,
+            paymentMethod: checkoutOptions.paymentMethod,
+            receiptMethod: checkoutOptions.receiptMethod,
+            saveForNextRun: checkoutOptions.saveForNextRun,
+          },
           cartItems: cartItems.map((product) => ({
             id: product.id,
             name: product.item,
@@ -484,12 +528,159 @@ function App() {
               <strong>{money.format(subtotal)}</strong>
             </div>
             <div>
-              <span>Delivery and service</span>
-              <strong>{money.format(fees)}</strong>
+              <span>Delivery</span>
+              <strong>{money.format(deliveryFee)}</strong>
+            </div>
+            <div>
+              <span>Courier tip</span>
+              <strong>{money.format(tip)}</strong>
             </div>
             <div className="total-line">
               <span>Total</span>
               <strong>{money.format(total)}</strong>
+            </div>
+          </div>
+
+          <div className="checkout-options">
+            <div className="option-heading">
+              <div>
+                <p className="eyebrow">Checkout options</p>
+                <h3>Delivery and receipt</h3>
+              </div>
+              <MessageSquare size={18} />
+            </div>
+
+            <div className="field-grid">
+              <label>
+                <span>Name</span>
+                <input
+                  value={checkoutOptions.customerName}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, customerName: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Email</span>
+                <input
+                  type="email"
+                  value={checkoutOptions.email}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, email: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Phone</span>
+                <input
+                  value={checkoutOptions.phone}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, phone: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Address</span>
+                <input
+                  value={checkoutOptions.address}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, address: event.target.value })}
+                />
+              </label>
+            </div>
+
+            <OptionGroup label="Payment method">
+              <SegmentedButton
+                active={checkoutOptions.paymentMethod === 'card'}
+                label="Card"
+                onClick={() => setCheckoutOptions({ ...checkoutOptions, paymentMethod: 'card' })}
+              />
+              <SegmentedButton
+                active={checkoutOptions.paymentMethod === 'apple_pay'}
+                label="Apple Pay"
+                onClick={() => setCheckoutOptions({ ...checkoutOptions, paymentMethod: 'apple_pay' })}
+              />
+              <SegmentedButton
+                active={checkoutOptions.paymentMethod === 'google_pay'}
+                label="Google Pay"
+                onClick={() => setCheckoutOptions({ ...checkoutOptions, paymentMethod: 'google_pay' })}
+              />
+            </OptionGroup>
+
+            <OptionGroup label="Delivery speed">
+              <SegmentedButton
+                active={checkoutOptions.deliverySpeed === 'standard'}
+                label="Standard"
+                onClick={() => setCheckoutOptions({ ...checkoutOptions, deliverySpeed: 'standard' })}
+              />
+              <SegmentedButton
+                active={checkoutOptions.deliverySpeed === 'priority'}
+                label="Priority"
+                onClick={() => setCheckoutOptions({ ...checkoutOptions, deliverySpeed: 'priority' })}
+              />
+              <SegmentedButton
+                active={checkoutOptions.deliverySpeed === 'scheduled'}
+                label="Scheduled"
+                onClick={() => setCheckoutOptions({ ...checkoutOptions, deliverySpeed: 'scheduled' })}
+              />
+            </OptionGroup>
+
+            <div className="field-grid compact">
+              <label>
+                <span>Substitutions</span>
+                <select
+                  value={checkoutOptions.substitution}
+                  onChange={(event) =>
+                    setCheckoutOptions({
+                      ...checkoutOptions,
+                      substitution: event.target.value as CheckoutOptions['substitution'],
+                    })
+                  }
+                >
+                  <option value="best_match">Best match</option>
+                  <option value="contact_me">Contact me</option>
+                  <option value="refund_item">Refund item</option>
+                </select>
+              </label>
+              <label>
+                <span>Receipt</span>
+                <select
+                  value={checkoutOptions.receiptMethod}
+                  onChange={(event) =>
+                    setCheckoutOptions({
+                      ...checkoutOptions,
+                      receiptMethod: event.target.value as CheckoutOptions['receiptMethod'],
+                    })
+                  }
+                >
+                  <option value="email">Email</option>
+                  <option value="sms">SMS</option>
+                  <option value="both">Email and SMS</option>
+                </select>
+              </label>
+            </div>
+
+            <OptionGroup label="Courier tip">
+              {[0, 3, 5, 8].map((amount) => (
+                <SegmentedButton
+                  key={amount}
+                  active={checkoutOptions.tip === amount}
+                  label={money.format(amount)}
+                  onClick={() => setCheckoutOptions({ ...checkoutOptions, tip: amount })}
+                />
+              ))}
+            </OptionGroup>
+
+            <div className="toggle-list">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.saveForNextRun}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, saveForNextRun: event.target.checked })}
+                />
+                Save preferences for weekly restock
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checkoutOptions.mockWebhook}
+                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, mockWebhook: event.target.checked })}
+                />
+                Simulate North webhook in sandbox
+              </label>
             </div>
           </div>
 
@@ -661,6 +852,37 @@ function titleCase(value: string) {
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+function deliveryFeeFor(speed: CheckoutOptions['deliverySpeed']) {
+  if (speed === 'priority') return 7.99;
+  if (speed === 'scheduled') return 5.99;
+  return 4.99;
+}
+
+function OptionGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="option-group">
+      <span>{label}</span>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function SegmentedButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button className={active ? 'active' : ''} type="button" onClick={onClick}>
+      {label}
+    </button>
+  );
 }
 
 function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
