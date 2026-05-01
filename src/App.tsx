@@ -82,6 +82,32 @@ type WebhookReceipt = {
   receivedAt: string;
 };
 
+type NorthCheckoutResult = Record<string, unknown>;
+
+type NorthSessionResponse = {
+  sessionToken?: string;
+  request?: {
+    amount?: number;
+    tax?: number;
+    serviceFee?: number;
+  };
+  raw?: unknown;
+  error?: string;
+  details?: unknown;
+};
+
+type NorthCheckout = {
+  mount: (sessionToken: string, containerId: string, options?: Record<string, unknown>) => void | Promise<void>;
+  submit: () => Promise<NorthCheckoutResult>;
+  onPaymentComplete?: (callback: (result: NorthCheckoutResult) => void) => void;
+};
+
+declare global {
+  interface Window {
+    checkout?: NorthCheckout;
+  }
+}
+
 type CheckoutOptions = {
   customerName: string;
   email: string;
@@ -214,8 +240,8 @@ const money = new Intl.NumberFormat('en-US', {
 });
 
 const northEmbedUrl = import.meta.env.VITE_NORTH_EMBED_URL as string | undefined;
-const northCheckoutId = import.meta.env.VITE_NORTH_CHECKOUT_ID as string | undefined;
-const northProfileId = import.meta.env.VITE_NORTH_PROFILE_ID as string | undefined;
+const northScriptUrl = (import.meta.env.VITE_NORTH_SCRIPT_URL as string | undefined) || 'https://checkout.north.com/checkout.js';
+const northFieldsContainerId = 'north-fields-container';
 
 const defaultCheckoutOptions: CheckoutOptions = {
   customerName: 'Karthik Sangam',
@@ -257,6 +283,12 @@ function App() {
   const [scanMessage, setScanMessage] = useState('Demo data is ready until a photo is uploaded.');
   const [weeklyStock, setWeeklyStock] = useState<WeeklyStockResponse | null>(null);
   const [checkoutOptions, setCheckoutOptions] = useState<CheckoutOptions>(defaultCheckoutOptions);
+  const [northState, setNorthState] = useState<'idle' | 'creating' | 'mounted' | 'submitting' | 'approved' | 'error'>(
+    'idle',
+  );
+  const [northSessionToken, setNorthSessionToken] = useState('');
+  const [northMessage, setNorthMessage] = useState('Create a North Fields session when the cart is ready.');
+  const [northPaymentResult, setNorthPaymentResult] = useState<NorthCheckoutResult | null>(null);
 
   const products = useMemo(() => mapNeedsToProducts(analysis.restockNeeds), [analysis]);
 
@@ -287,6 +319,15 @@ function App() {
       .catch(() => setWeeklyStock(null));
   }, []);
 
+  const resetNorthSession = () => {
+    setNorthState('idle');
+    setNorthSessionToken('');
+    setNorthPaymentResult(null);
+    setNorthMessage('Create a North Fields session when the cart is ready.');
+    setWebhookState('idle');
+    setWebhookReceipt(null);
+  };
+
   const handleImage = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -294,8 +335,7 @@ function App() {
     setImageUrl(URL.createObjectURL(file));
     setScanState('scanning');
     setCheckoutState('cart');
-    setWebhookState('idle');
-    setWebhookReceipt(null);
+    resetNorthSession();
     setScanMessage('Analyzing visible items and estimating refill needs.');
 
     const formData = new FormData();
@@ -329,73 +369,183 @@ function App() {
   };
 
   const changeQty = (id: string, delta: number) => {
+    resetNorthSession();
     setCart((current) => ({
       ...current,
       [id]: Math.max(0, (current[id] ?? 0) + delta),
     }));
   };
 
-  const startCheckout = async () => {
-    if (!cartItems.length) return;
-    setCheckoutState('paying');
-    setWebhookState('sending');
-    setWebhookReceipt(null);
+  const buildNorthPayload = () => ({
+    amount: roundCurrency(subtotal),
+    tax: roundCurrency(tax),
+    serviceFee: roundCurrency(Math.max(0, deliveryFee + tip - discount)),
+    metadata: {
+      stockPayOrderId: `stockpay_${Date.now()}`,
+      customerName: checkoutOptions.customerName,
+      email: checkoutOptions.email,
+      phone: checkoutOptions.phone,
+      address: checkoutOptions.address,
+      billingAddress: checkoutOptions.billingAddress,
+      promoCode: checkoutOptions.promoCodeEnabled ? checkoutOptions.promoCode : '',
+      deliverySpeed: checkoutOptions.deliverySpeed,
+      substitution: checkoutOptions.substitution,
+      paymentMethod: checkoutOptions.paymentMethod,
+      receiptMethod: checkoutOptions.receiptMethod,
+      saveForNextRun: checkoutOptions.saveForNextRun,
+      mockWebhook: checkoutOptions.mockWebhook,
+    },
+    products: cartItems.map((product) => ({
+      id: product.id,
+      name: product.product,
+      quantity: cart[product.id] ?? product.qty,
+      price: roundCurrency(product.price),
+      logoUrl: product.image,
+    })),
+  });
 
-    await new Promise((resolve) => window.setTimeout(resolve, 900));
-
+  const simulateNorthWebhook = async () => {
     if (!checkoutOptions.mockWebhook) {
-      setCheckoutState('paid');
       setWebhookState('idle');
       return;
     }
 
-    try {
-      const response = await fetch('/api/north/mock-webhook', {
+    setWebhookState('sending');
+
+    const response = await fetch('/api/north/mock-webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: Math.round(total * 100),
+        currency: 'USD',
+        checkoutOptions: {
+          mobileNumber: checkoutOptions.mobileNumber,
+          tax: checkoutOptions.tax,
+          tips: checkoutOptions.tips,
+          promoCode: checkoutOptions.promoCodeEnabled,
+          shipping: checkoutOptions.shipping,
+          billing: checkoutOptions.billing,
+          paymentSummary: checkoutOptions.paymentSummary,
+          productList: checkoutOptions.productList,
+          cardholderName: checkoutOptions.cardholderName,
+          email: checkoutOptions.emailEnabled,
+          displayCheckoutName: checkoutOptions.displayCheckoutName,
+          displayInputPlaceholders: checkoutOptions.displayInputPlaceholders,
+          displayInputLabels: checkoutOptions.displayInputLabels,
+          deliverySpeed: checkoutOptions.deliverySpeed,
+          substitution: checkoutOptions.substitution,
+          paymentMethod: checkoutOptions.paymentMethod,
+          receiptMethod: checkoutOptions.receiptMethod,
+          saveForNextRun: checkoutOptions.saveForNextRun,
+        },
+        cartItems: cartItems.map((product) => ({
+          id: product.id,
+          name: product.item,
+          quantity: cart[product.id] ?? product.qty,
+          unitPrice: Math.round(product.price * 100),
+        })),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Webhook simulation failed');
+    }
+
+    const receipt = (await response.json()) as WebhookReceipt;
+    setWebhookReceipt(receipt);
+    setWebhookState('received');
+  };
+
+  const createAndMountNorthFields = async () => {
+    setCheckoutState('paying');
+    setNorthState('creating');
+    setNorthMessage('Creating a short-lived North checkout session.');
+    setWebhookReceipt(null);
+
+    const sessionResponse = await fetch('/api/north/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildNorthPayload()),
+    });
+    const session = (await sessionResponse.json()) as NorthSessionResponse;
+
+    if (!sessionResponse.ok || !session.sessionToken) {
+      throw new Error(session.error || 'North session did not return a mountable token.');
+    }
+
+    setNorthSessionToken(session.sessionToken);
+    setNorthMessage('Session created. Mounting North hosted payment fields.');
+    await loadNorthCheckoutScript();
+    await nextFrame();
+
+    const container = document.getElementById(northFieldsContainerId);
+    if (container) {
+      container.innerHTML = '';
+    }
+
+    await window.checkout?.mount(session.sessionToken, northFieldsContainerId, {
+      amount: session.request?.amount,
+      tax: session.request?.tax,
+      serviceFee: session.request?.serviceFee,
+    });
+    window.checkout?.onPaymentComplete?.((result) => {
+      setNorthPaymentResult(result);
+      setNorthState('approved');
+      setCheckoutState('paid');
+      setNorthMessage('North reported payment completion.');
+    });
+
+    setNorthState('mounted');
+    setCheckoutState('cart');
+    setNorthMessage('North Fields are mounted. Enter the sandbox card and submit payment.');
+  };
+
+  const submitNorthPayment = async () => {
+    setCheckoutState('paying');
+    setNorthState('submitting');
+    setNorthMessage('Submitting hosted fields to North.');
+    setWebhookReceipt(null);
+
+    if (!window.checkout?.submit) {
+      throw new Error('North checkout fields are not mounted yet.');
+    }
+
+    const paymentResult = await window.checkout.submit();
+    if (!isNorthPaymentSuccessful(paymentResult)) {
+      throw new Error('North did not approve the payment response.');
+    }
+
+    setNorthPaymentResult(paymentResult);
+
+    if (northSessionToken) {
+      await fetch('/api/north/session-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: Math.round(total * 100),
-          currency: 'USD',
-          checkoutOptions: {
-            mobileNumber: checkoutOptions.mobileNumber,
-            tax: checkoutOptions.tax,
-            tips: checkoutOptions.tips,
-            promoCode: checkoutOptions.promoCodeEnabled,
-            shipping: checkoutOptions.shipping,
-            billing: checkoutOptions.billing,
-            paymentSummary: checkoutOptions.paymentSummary,
-            productList: checkoutOptions.productList,
-            cardholderName: checkoutOptions.cardholderName,
-            email: checkoutOptions.emailEnabled,
-            displayCheckoutName: checkoutOptions.displayCheckoutName,
-            displayInputPlaceholders: checkoutOptions.displayInputPlaceholders,
-            displayInputLabels: checkoutOptions.displayInputLabels,
-            deliverySpeed: checkoutOptions.deliverySpeed,
-            substitution: checkoutOptions.substitution,
-            paymentMethod: checkoutOptions.paymentMethod,
-            receiptMethod: checkoutOptions.receiptMethod,
-            saveForNextRun: checkoutOptions.saveForNextRun,
-          },
-          cartItems: cartItems.map((product) => ({
-            id: product.id,
-            name: product.item,
-            quantity: cart[product.id] ?? product.qty,
-            unitPrice: Math.round(product.price * 100),
-          })),
-        }),
-      });
+        body: JSON.stringify({ sessionToken: northSessionToken }),
+      }).catch(() => undefined);
+    }
 
-      if (!response.ok) {
-        throw new Error('Webhook simulation failed');
+    await simulateNorthWebhook();
+    setNorthState('approved');
+    setCheckoutState('paid');
+    setNorthMessage('Payment submitted. StockPay has a verified checkout path for the demo.');
+  };
+
+  const startCheckout = async () => {
+    if (!cartItems.length) return;
+
+    try {
+      if (northState === 'mounted' && northSessionToken) {
+        await submitNorthPayment();
+        return;
       }
 
-      const receipt = (await response.json()) as WebhookReceipt;
-      setWebhookReceipt(receipt);
-      setWebhookState('received');
-      setCheckoutState('paid');
-    } catch {
-      setWebhookState('error');
+      await createAndMountNorthFields();
+    } catch (error) {
       setCheckoutState('cart');
+      setNorthState('error');
+      setWebhookState('error');
+      setNorthMessage(error instanceof Error ? error.message : 'North checkout failed.');
     }
   };
 
@@ -419,8 +569,7 @@ function App() {
     setCart(Object.fromEntries(restockNeeds.map((need) => [idFor(need.item), need.qty])));
     setScanState('ready');
     setCheckoutState('cart');
-    setWebhookState('idle');
-    setWebhookReceipt(null);
+    resetNorthSession();
     setScanMessage('Monthly stock trend loaded into the cart using the YOLO-compatible demo backend.');
   };
 
@@ -883,18 +1032,29 @@ function App() {
             </div>
           </div>
 
-          <button className="checkout-button" onClick={startCheckout} disabled={!cartItems.length || checkoutState !== 'cart'}>
-            {checkoutState === 'cart' && (
+          <button
+            className="checkout-button"
+            onClick={startCheckout}
+            disabled={!cartItems.length || northState === 'creating' || northState === 'submitting' || checkoutState === 'paid'}
+          >
+            {checkoutState === 'cart' && northState !== 'mounted' && (
               <>
                 <CreditCard size={18} />
-                Pay with North
+                Start North Fields
+                <ArrowRight size={18} />
+              </>
+            )}
+            {checkoutState === 'cart' && northState === 'mounted' && (
+              <>
+                <CreditCard size={18} />
+                Submit North payment
                 <ArrowRight size={18} />
               </>
             )}
             {checkoutState === 'paying' && (
               <>
                 <span className="spinner" />
-                Authorizing payment
+                {northState === 'creating' ? 'Mounting North Fields' : 'Authorizing payment'}
               </>
             )}
             {checkoutState === 'paid' && (
@@ -922,42 +1082,48 @@ function App() {
                     <strong>
                       {checkoutState === 'paid'
                         ? 'Approved and verified'
-                        : webhookState === 'sending'
-                          ? 'Waiting for webhook'
-                          : 'SDK mount pending'}
+                        : northState === 'mounted'
+                          ? 'Fields mounted'
+                          : northState === 'creating'
+                            ? 'Creating session'
+                            : northState === 'submitting'
+                              ? 'Submitting payment'
+                              : northState === 'error'
+                                ? 'Needs attention'
+                                : 'SDK mount pending'}
                     </strong>
-                    <small>
-                      {webhookReceipt
-                        ? `Webhook ${webhookReceipt.eventId} received`
-                        : northCheckoutId && northProfileId
-                        ? `Checkout ${northCheckoutId} ready for SDK wiring`
-                        : 'Add checkout/profile IDs when North sends them'}
-                    </small>
+                    <small>{webhookReceipt ? `Webhook ${webhookReceipt.eventId} received` : northMessage}</small>
                   </div>
                 </div>
-                <div className="north-fields-preview">
-                  {checkoutOptions.displayCheckoutName && <strong>StockPay Fields Checkout</strong>}
-                  {checkoutOptions.cardholderName && (
+                <div
+                  id={northFieldsContainerId}
+                  className={`north-fields-container ${northState === 'creating' || northState === 'mounted' || northState === 'submitting' || northState === 'approved' ? 'active' : ''}`}
+                />
+                {(northState === 'idle' || northState === 'error') && (
+                  <div className="north-fields-preview">
+                    {checkoutOptions.displayCheckoutName && <strong>StockPay Fields Checkout</strong>}
+                    {checkoutOptions.cardholderName && (
+                      <div>
+                        {checkoutOptions.displayInputLabels && <span>Cardholder name</span>}
+                        <em>{checkoutOptions.displayInputPlaceholders ? checkoutOptions.customerName : ''}</em>
+                      </div>
+                    )}
                     <div>
-                      {checkoutOptions.displayInputLabels && <span>Cardholder name</span>}
-                      <em>{checkoutOptions.displayInputPlaceholders ? checkoutOptions.customerName : ''}</em>
+                      {checkoutOptions.displayInputLabels && <span>Card number</span>}
+                      <em>{checkoutOptions.displayInputPlaceholders ? '4111 1111 1111 1111' : ''}</em>
                     </div>
-                  )}
-                  <div>
-                    {checkoutOptions.displayInputLabels && <span>Card number</span>}
-                    <em>{checkoutOptions.displayInputPlaceholders ? '4242 4242 4242 4242' : ''}</em>
+                    <div className="north-field-pair">
+                      <div>
+                        {checkoutOptions.displayInputLabels && <span>Expiry</span>}
+                        <em>{checkoutOptions.displayInputPlaceholders ? '12 / 30' : ''}</em>
+                      </div>
+                      <div>
+                        {checkoutOptions.displayInputLabels && <span>CVV</span>}
+                        <em>{checkoutOptions.displayInputPlaceholders ? '123' : ''}</em>
+                      </div>
+                    </div>
                   </div>
-                  <div className="north-field-pair">
-                    <div>
-                      {checkoutOptions.displayInputLabels && <span>Expiry</span>}
-                      <em>{checkoutOptions.displayInputPlaceholders ? 'MM / YY' : ''}</em>
-                    </div>
-                    <div>
-                      {checkoutOptions.displayInputLabels && <span>CVV</span>}
-                      <em>{checkoutOptions.displayInputPlaceholders ? '123' : ''}</em>
-                    </div>
-                  </div>
-                </div>
+                )}
                 {checkoutOptions.productList && (
                   <div className="north-mini-list">
                     <span>Product list</span>
@@ -1094,6 +1260,61 @@ function deliveryFeeFor(speed: CheckoutOptions['deliverySpeed']) {
   if (speed === 'priority') return 7.99;
   if (speed === 'scheduled') return 5.99;
   return 4.99;
+}
+
+function roundCurrency(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function nextFrame() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
+function loadNorthCheckoutScript() {
+  if (window.checkout) {
+    return Promise.resolve();
+  }
+
+  const existingScript = document.getElementById('north-checkout-js') as HTMLScriptElement | null;
+  if (existingScript) {
+    return new Promise<void>((resolve, reject) => {
+      existingScript.addEventListener('load', () => resolve(), { once: true });
+      existingScript.addEventListener('error', () => reject(new Error('North checkout.js failed to load.')), {
+        once: true,
+      });
+    });
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.id = 'north-checkout-js';
+    script.src = northScriptUrl;
+    script.async = true;
+    script.onload = () => {
+      if (window.checkout) {
+        resolve();
+        return;
+      }
+      reject(new Error('North checkout.js loaded without exposing window.checkout.'));
+    };
+    script.onerror = () => reject(new Error('North checkout.js failed to load.'));
+    document.head.appendChild(script);
+  });
+}
+
+function isNorthPaymentSuccessful(result: NorthCheckoutResult | undefined) {
+  if (!result) return false;
+
+  const status = String(result.status || result.paymentStatus || result.authResponseText || '').toLowerCase();
+  if (status.includes('declined') || status.includes('error') || status.includes('failed')) return false;
+  if (status.includes('approved') || status.includes('success')) return true;
+
+  if ('success' in result) return Boolean(result.success);
+  if ('approved' in result) return Boolean(result.approved);
+
+  return true;
 }
 
 function OptionGroup({ label, children }: { label: string; children: React.ReactNode }) {

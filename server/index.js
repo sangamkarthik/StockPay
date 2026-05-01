@@ -5,6 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { analyzeFridgeImage, weeklyStockDemo } from './stockpay-api.js';
+import { createNorthSession, getNorthSessionStatus } from './north-checkout.js';
 import { createMockNorthTransactionEvent, handleNorthTransactionEvent } from './north-webhook.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -37,6 +38,32 @@ app.post('/api/analyze-fridge', upload.single('image'), async (req, res) => {
 
 app.get('/api/weekly-stock-demo', (_req, res) => {
   res.json(weeklyStockDemo);
+});
+
+app.post('/api/north/session', async (req, res) => {
+  try {
+    const session = await createNorthSession(req.body);
+    res.json(session);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({
+      error: error.message || 'Failed to create North checkout session.',
+      details: error.payload,
+    });
+  }
+});
+
+app.post('/api/north/session-status', async (req, res) => {
+  try {
+    const status = await getNorthSessionStatus(req.body?.sessionToken);
+    res.json(status);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({
+      error: error.message || 'Failed to verify North checkout session.',
+      details: error.payload,
+    });
+  }
 });
 
 app.post('/api/north/mock-webhook', (req, res) => {

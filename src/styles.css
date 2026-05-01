@@ -618,6 +618,25 @@ h3 {
   border-radius: 999px;
 }
 
+.north-fields-container {
+  display: none;
+  min-height: 292px;
+  margin: 0 12px 12px;
+  overflow: hidden;
+  background: #f8faf6;
+  border: 1px solid #334238;
+  border-radius: 8px;
+}
+
+.north-fields-container.active {
+  display: block;
+}
+
+.north-fields-container iframe {
+  width: 100%;
+  min-height: 292px;
+}
+
 .checkout-button {
   justify-content: center;
   gap: 10px;
