@@ -122,7 +122,7 @@ h3 {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(420px, 1.5fr) minmax(320px, 0.85fr);
+  grid-template-columns: minmax(260px, 0.75fr) minmax(360px, 0.95fr) minmax(520px, 1.25fr);
   gap: 18px;
   align-items: start;
 }
@@ -618,9 +618,45 @@ h3 {
   border-radius: 999px;
 }
 
+.north-session-sync {
+  display: grid;
+  gap: 8px;
+  margin: 0 12px 12px;
+  padding: 12px;
+  color: #dfe8df;
+  background: #151a16;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.north-session-sync strong {
+  color: #fff;
+  font-size: 0.86rem;
+}
+
+.north-session-sync div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.north-session-sync span {
+  color: #aebdaf;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.north-session-sync b {
+  color: #fff;
+  font-size: 0.78rem;
+  text-align: right;
+}
+
 .north-fields-container {
   display: none;
-  min-height: 292px;
+  min-height: 560px;
   margin: 0 12px 12px;
   overflow: hidden;
   background: #f8faf6;
@@ -634,7 +670,7 @@ h3 {
 
 .north-fields-container iframe {
   width: 100%;
-  min-height: 292px;
+  min-height: 560px;
 }
 
 .checkout-button {
@@ -682,7 +718,7 @@ h3 {
 .embedded-checkout iframe {
   display: block;
   width: 100%;
-  min-height: 230px;
+  min-height: 560px;
   border: 0;
 }
 
@@ -928,5 +964,11 @@ h3 {
 
   .trend-copy {
     text-align: left;
+  }
+
+  .north-fields-container,
+  .north-fields-container iframe,
+  .embedded-checkout iframe {
+    min-height: 480px;
   }
 }

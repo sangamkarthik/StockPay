@@ -90,6 +90,12 @@ type NorthSessionResponse = {
     amount?: number;
     tax?: number;
     serviceFee?: number;
+    products?: Array<{
+      name: string;
+      price: number;
+      quantity: number;
+      logoUrl?: string;
+    }>;
   };
   raw?: unknown;
   error?: string;
@@ -289,6 +295,7 @@ function App() {
   const [northSessionToken, setNorthSessionToken] = useState('');
   const [northMessage, setNorthMessage] = useState('Create a North Fields session when the cart is ready.');
   const [northPaymentResult, setNorthPaymentResult] = useState<NorthCheckoutResult | null>(null);
+  const [northSessionRequest, setNorthSessionRequest] = useState<NorthSessionResponse['request'] | null>(null);
 
   const products = useMemo(() => mapNeedsToProducts(analysis.restockNeeds), [analysis]);
 
@@ -319,13 +326,23 @@ function App() {
       .catch(() => setWeeklyStock(null));
   }, []);
 
-  const resetNorthSession = () => {
+  const resetNorthSession = (message = 'Create a North Fields session when the cart is ready.') => {
+    setCheckoutState('cart');
     setNorthState('idle');
     setNorthSessionToken('');
+    setNorthSessionRequest(null);
     setNorthPaymentResult(null);
-    setNorthMessage('Create a North Fields session when the cart is ready.');
+    setNorthMessage(message);
     setWebhookState('idle');
     setWebhookReceipt(null);
+  };
+
+  const updateCheckoutOptions = (nextOptions: CheckoutOptions) => {
+    setCheckoutOptions(nextOptions);
+
+    if (northState !== 'idle') {
+      resetNorthSession('Checkout options changed. Start North Fields again so North receives the updated cart, tax, and fee settings.');
+    }
   };
 
   const handleImage = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -394,14 +411,31 @@ function App() {
       receiptMethod: checkoutOptions.receiptMethod,
       saveForNextRun: checkoutOptions.saveForNextRun,
       mockWebhook: checkoutOptions.mockWebhook,
+      northFieldsOptions: {
+        mobileNumber: checkoutOptions.mobileNumber,
+        tax: checkoutOptions.tax,
+        tips: checkoutOptions.tips,
+        promoCode: checkoutOptions.promoCodeEnabled,
+        shipping: checkoutOptions.shipping,
+        billing: checkoutOptions.billing,
+        paymentSummary: checkoutOptions.paymentSummary,
+        productList: checkoutOptions.productList,
+        cardholderName: checkoutOptions.cardholderName,
+        email: checkoutOptions.emailEnabled,
+        displayCheckoutName: checkoutOptions.displayCheckoutName,
+        displayInputPlaceholders: checkoutOptions.displayInputPlaceholders,
+        displayInputLabels: checkoutOptions.displayInputLabels,
+      },
     },
-    products: cartItems.map((product) => ({
-      id: product.id,
-      name: product.product,
-      quantity: cart[product.id] ?? product.qty,
-      price: roundCurrency(product.price),
-      logoUrl: product.image,
-    })),
+    products: checkoutOptions.productList
+      ? cartItems.map((product) => ({
+          id: product.id,
+          name: product.product,
+          quantity: cart[product.id] ?? product.qty,
+          price: roundCurrency(product.price),
+          logoUrl: product.image,
+        }))
+      : [],
   });
 
   const simulateNorthWebhook = async () => {
@@ -474,6 +508,7 @@ function App() {
     }
 
     setNorthSessionToken(session.sessionToken);
+    setNorthSessionRequest(session.request ?? null);
     setNorthMessage('Session created. Mounting North hosted payment fields.');
     await loadNorthCheckoutScript();
     await nextFrame();
@@ -487,6 +522,16 @@ function App() {
       amount: session.request?.amount,
       tax: session.request?.tax,
       serviceFee: session.request?.serviceFee,
+      fields: {
+        cardholderName: checkoutOptions.cardholderName,
+        displayInputLabels: checkoutOptions.displayInputLabels,
+        displayInputPlaceholders: checkoutOptions.displayInputPlaceholders,
+      },
+      paymentMethods: {
+        card: checkoutOptions.paymentMethod === 'card',
+        applePay: checkoutOptions.paymentMethod === 'apple_pay',
+        googlePay: checkoutOptions.paymentMethod === 'google_pay',
+      },
     });
     window.checkout?.onPaymentComplete?.((result) => {
       setNorthPaymentResult(result);
@@ -763,7 +808,7 @@ function App() {
                   <input
                     placeholder={checkoutOptions.displayInputPlaceholders ? 'Cardholder name' : ''}
                     value={checkoutOptions.customerName}
-                    onChange={(event) => setCheckoutOptions({ ...checkoutOptions, customerName: event.target.value })}
+                    onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, customerName: event.target.value })}
                   />
                 </label>
               )}
@@ -774,7 +819,7 @@ function App() {
                     type="email"
                     placeholder={checkoutOptions.displayInputPlaceholders ? 'name@example.com' : ''}
                     value={checkoutOptions.email}
-                    onChange={(event) => setCheckoutOptions({ ...checkoutOptions, email: event.target.value })}
+                    onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, email: event.target.value })}
                   />
                 </label>
               )}
@@ -784,7 +829,7 @@ function App() {
                   <input
                     placeholder={checkoutOptions.displayInputPlaceholders ? '(555) 010-0000' : ''}
                     value={checkoutOptions.phone}
-                    onChange={(event) => setCheckoutOptions({ ...checkoutOptions, phone: event.target.value })}
+                    onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, phone: event.target.value })}
                   />
                 </label>
               )}
@@ -794,7 +839,7 @@ function App() {
                   <input
                     placeholder={checkoutOptions.displayInputPlaceholders ? 'Delivery address' : ''}
                     value={checkoutOptions.address}
-                    onChange={(event) => setCheckoutOptions({ ...checkoutOptions, address: event.target.value })}
+                    onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, address: event.target.value })}
                   />
                 </label>
               )}
@@ -804,7 +849,7 @@ function App() {
                   <input
                     placeholder={checkoutOptions.displayInputPlaceholders ? 'Billing address' : ''}
                     value={checkoutOptions.billingAddress}
-                    onChange={(event) => setCheckoutOptions({ ...checkoutOptions, billingAddress: event.target.value })}
+                    onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, billingAddress: event.target.value })}
                   />
                 </label>
               )}
@@ -814,7 +859,7 @@ function App() {
                   <input
                     placeholder={checkoutOptions.displayInputPlaceholders ? 'Promo code' : ''}
                     value={checkoutOptions.promoCode}
-                    onChange={(event) => setCheckoutOptions({ ...checkoutOptions, promoCode: event.target.value })}
+                    onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, promoCode: event.target.value })}
                   />
                 </label>
               )}
@@ -824,17 +869,17 @@ function App() {
               <SegmentedButton
                 active={checkoutOptions.paymentMethod === 'card'}
                 label="Card"
-                onClick={() => setCheckoutOptions({ ...checkoutOptions, paymentMethod: 'card' })}
+                onClick={() => updateCheckoutOptions({ ...checkoutOptions, paymentMethod: 'card' })}
               />
               <SegmentedButton
                 active={checkoutOptions.paymentMethod === 'apple_pay'}
                 label="Apple Pay"
-                onClick={() => setCheckoutOptions({ ...checkoutOptions, paymentMethod: 'apple_pay' })}
+                onClick={() => updateCheckoutOptions({ ...checkoutOptions, paymentMethod: 'apple_pay' })}
               />
               <SegmentedButton
                 active={checkoutOptions.paymentMethod === 'google_pay'}
                 label="Google Pay"
-                onClick={() => setCheckoutOptions({ ...checkoutOptions, paymentMethod: 'google_pay' })}
+                onClick={() => updateCheckoutOptions({ ...checkoutOptions, paymentMethod: 'google_pay' })}
               />
             </OptionGroup>
 
@@ -842,17 +887,17 @@ function App() {
               <SegmentedButton
                 active={checkoutOptions.deliverySpeed === 'standard'}
                 label="Standard"
-                onClick={() => setCheckoutOptions({ ...checkoutOptions, deliverySpeed: 'standard' })}
+                onClick={() => updateCheckoutOptions({ ...checkoutOptions, deliverySpeed: 'standard' })}
               />
               <SegmentedButton
                 active={checkoutOptions.deliverySpeed === 'priority'}
                 label="Priority"
-                onClick={() => setCheckoutOptions({ ...checkoutOptions, deliverySpeed: 'priority' })}
+                onClick={() => updateCheckoutOptions({ ...checkoutOptions, deliverySpeed: 'priority' })}
               />
               <SegmentedButton
                 active={checkoutOptions.deliverySpeed === 'scheduled'}
                 label="Scheduled"
-                onClick={() => setCheckoutOptions({ ...checkoutOptions, deliverySpeed: 'scheduled' })}
+                onClick={() => updateCheckoutOptions({ ...checkoutOptions, deliverySpeed: 'scheduled' })}
               />
             </OptionGroup>
 
@@ -862,7 +907,7 @@ function App() {
                 <select
                   value={checkoutOptions.substitution}
                   onChange={(event) =>
-                    setCheckoutOptions({
+                    updateCheckoutOptions({
                       ...checkoutOptions,
                       substitution: event.target.value as CheckoutOptions['substitution'],
                     })
@@ -878,7 +923,7 @@ function App() {
                 <select
                   value={checkoutOptions.receiptMethod}
                   onChange={(event) =>
-                    setCheckoutOptions({
+                    updateCheckoutOptions({
                       ...checkoutOptions,
                       receiptMethod: event.target.value as CheckoutOptions['receiptMethod'],
                     })
@@ -898,7 +943,7 @@ function App() {
                   key={amount}
                   active={checkoutOptions.tip === amount}
                   label={money.format(amount)}
-                  onClick={() => setCheckoutOptions({ ...checkoutOptions, tip: amount })}
+                  onClick={() => updateCheckoutOptions({ ...checkoutOptions, tip: amount })}
                 />
               ))}
               </OptionGroup>
@@ -909,7 +954,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={checkoutOptions.mobileNumber}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, mobileNumber: event.target.checked })}
+                  onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, mobileNumber: event.target.checked })}
                 />
                 Mobile number
               </label>
@@ -917,7 +962,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={checkoutOptions.emailEnabled}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, emailEnabled: event.target.checked })}
+                  onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, emailEnabled: event.target.checked })}
                 />
                 Email field
               </label>
@@ -925,7 +970,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={checkoutOptions.cardholderName}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, cardholderName: event.target.checked })}
+                  onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, cardholderName: event.target.checked })}
                 />
                 Cardholder name
               </label>
@@ -933,7 +978,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={checkoutOptions.shipping}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, shipping: event.target.checked })}
+                  onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, shipping: event.target.checked })}
                 />
                 Shipping
               </label>
@@ -941,7 +986,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={checkoutOptions.billing}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, billing: event.target.checked })}
+                  onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, billing: event.target.checked })}
                 />
                 Billing
               </label>
@@ -949,7 +994,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={checkoutOptions.tax}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, tax: event.target.checked })}
+                  onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, tax: event.target.checked })}
                 />
                 Tax
               </label>
@@ -957,7 +1002,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={checkoutOptions.tips}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, tips: event.target.checked })}
+                  onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, tips: event.target.checked })}
                 />
                 Tips
               </label>
@@ -965,7 +1010,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={checkoutOptions.promoCodeEnabled}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, promoCodeEnabled: event.target.checked })}
+                  onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, promoCodeEnabled: event.target.checked })}
                 />
                 Promo code
               </label>
@@ -973,7 +1018,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={checkoutOptions.paymentSummary}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, paymentSummary: event.target.checked })}
+                  onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, paymentSummary: event.target.checked })}
                 />
                 Payment summary
               </label>
@@ -981,7 +1026,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={checkoutOptions.productList}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, productList: event.target.checked })}
+                  onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, productList: event.target.checked })}
                 />
                 Product list
               </label>
@@ -989,7 +1034,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={checkoutOptions.displayCheckoutName}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, displayCheckoutName: event.target.checked })}
+                  onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, displayCheckoutName: event.target.checked })}
                 />
                 Display checkout name
               </label>
@@ -998,7 +1043,7 @@ function App() {
                   type="checkbox"
                   checked={checkoutOptions.displayInputPlaceholders}
                   onChange={(event) =>
-                    setCheckoutOptions({ ...checkoutOptions, displayInputPlaceholders: event.target.checked })
+                    updateCheckoutOptions({ ...checkoutOptions, displayInputPlaceholders: event.target.checked })
                   }
                 />
                 Input placeholders
@@ -1008,7 +1053,7 @@ function App() {
                   type="checkbox"
                   checked={checkoutOptions.displayInputLabels}
                   onChange={(event) =>
-                    setCheckoutOptions({ ...checkoutOptions, displayInputLabels: event.target.checked })
+                    updateCheckoutOptions({ ...checkoutOptions, displayInputLabels: event.target.checked })
                   }
                 />
                 Input labels
@@ -1017,7 +1062,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={checkoutOptions.saveForNextRun}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, saveForNextRun: event.target.checked })}
+                  onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, saveForNextRun: event.target.checked })}
                 />
                 Save preferences for weekly restock
               </label>
@@ -1025,7 +1070,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={checkoutOptions.mockWebhook}
-                  onChange={(event) => setCheckoutOptions({ ...checkoutOptions, mockWebhook: event.target.checked })}
+                  onChange={(event) => updateCheckoutOptions({ ...checkoutOptions, mockWebhook: event.target.checked })}
                 />
                 Simulate North webhook in sandbox
               </label>
@@ -1138,6 +1183,29 @@ function App() {
                     <small>{money.format(total)} total</small>
                   </div>
                 )}
+                <div className="north-session-sync">
+                  <strong>North session payload</strong>
+                  <div>
+                    <span>Products</span>
+                    <b>
+                      {checkoutOptions.productList
+                        ? `${northSessionRequest?.products?.length ?? cartItems.length} item${cartItems.length === 1 ? '' : 's'}`
+                        : 'Amount only'}
+                    </b>
+                  </div>
+                  <div>
+                    <span>Subtotal amount</span>
+                    <b>{money.format(northSessionRequest?.amount ?? roundCurrency(subtotal))}</b>
+                  </div>
+                  <div>
+                    <span>Tax</span>
+                    <b>{checkoutOptions.tax ? money.format(northSessionRequest?.tax ?? roundCurrency(tax)) : 'Off'}</b>
+                  </div>
+                  <div>
+                    <span>Service, delivery, tip, promo</span>
+                    <b>{money.format(northSessionRequest?.serviceFee ?? roundCurrency(Math.max(0, deliveryFee + tip - discount)))}</b>
+                  </div>
+                </div>
               </>
             )}
           </div>
