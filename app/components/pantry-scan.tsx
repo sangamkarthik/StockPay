@@ -9,19 +9,19 @@ const SCAN_SOURCES = [
     key: "refrigerator",
     label: "Refrigerator",
     src: "/demo-assets/pantry-baseline/refrigerator-baseline-mixed-labels.png",
-    ingredients: ["Eggs", "Milk", "Heavy Cream", "Parmesan", "Yogurt", "Butter", "Strawberries", "Basil", "Minced Garlic", "Lemons"],
+    ingredients: ["Eggs", "Milk", "Butter", "Yogurt"],
   },
   {
     key: "pantry",
     label: "Pantry",
     src: "/demo-assets/pantry-baseline/pantry-baseline-mixed-labels.png",
-    ingredients: ["Spaghetti", "Rice", "Tomatoes", "Olive Oil", "Flour", "Sugar", "Oats", "Peanut Butter", "Pasta Sauce", "Chickpeas", "Oregano", "Turmeric", "Chili", "Basil", "Parsley", "Onion", "Garlic", "Black Pepper"],
+    ingredients: ["Rice", "Olive Oil", "Salt", "Black Pepper", "Garlic", "Onion", "Flour", "Sugar", "Soy Sauce"],
   },
   {
     key: "freezer",
     label: "Freezer",
     src: "/demo-assets/pantry-baseline/freezer-baseline-mixed-labels.png",
-    ingredients: ["Frozen Peas", "Spinach", "Vanilla Ice Cream", "Frozen Berries", "Mixed Vegetables", "Chicken Breast", "Dumplings"],
+    ingredients: ["Frozen Peas", "Mixed Vegetables"],
   },
 ];
 
