@@ -1,12 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NorthCheckout } from "../../components/north-checkout";
 import type { RecipeIngredient } from "./recipe-ingredients-panel";
 
 const TAX_RATE = 0.085;
 const SERVICE_FEE = 2.99;
 const DELIVERY_FEE = 4.99;
+
+type DeliveryResult = {
+  simulated: boolean;
+  delivery_id: string;
+  status: string;
+  tracking_url: string | null;
+  dasher?: { name: string; rating?: number; vehicle?: string } | null;
+  estimated_delivery_time?: string | null;
+};
+
+type ModalPhase = "checkout" | "confirmed";
 
 type MissingIngredientsModalProps = {
   ingredients: RecipeIngredient[];
@@ -15,9 +26,13 @@ type MissingIngredientsModalProps = {
 };
 
 export function MissingIngredientsModal({ ingredients, isOpen, onClose }: MissingIngredientsModalProps) {
+  const [phase, setPhase] = useState<ModalPhase>("checkout");
+  const [delivery, setDelivery] = useState<DeliveryResult | null>(null);
   const [address, setAddress] = useState("");
-
-  if (!isOpen) return null;
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSugg, setShowSugg] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addrBoxRef = useRef<HTMLDivElement>(null);
 
   const products = ingredients.map((i) => ({
     name: i.name,
@@ -29,16 +44,172 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
   const taxAmount = subtotal * TAX_RATE;
   const grandTotal = subtotal + taxAmount + SERVICE_FEE + DELIVERY_FEE;
 
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (addrBoxRef.current && !addrBoxRef.current.contains(e.target as Node)) {
+        setShowSugg(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  const handleAddressChange = useCallback((val: string) => {
+    setAddress(val);
+    setShowSugg(false);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (val.length < 3) { setSuggestions([]); return; }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&limit=6&countrycodes=us`,
+        );
+        const data: Array<{ display_name: string }> = await res.json();
+        const names = data.map((r) => r.display_name);
+        setSuggestions(names);
+        if (names.length > 0) setShowSugg(true);
+      } catch {
+        setSuggestions([]);
+      }
+    }, 380);
+  }, []);
+
+  const handleApproved = useCallback(async () => {
+    let result: DeliveryResult;
+    try {
+      const res = await fetch("/api/doorstep", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deliveryAddress: address || "Demo Street, San Francisco, CA",
+          items: products.map((p) => p.name),
+          orderTotal: grandTotal,
+        }),
+      });
+      result = await res.json();
+    } catch {
+      result = {
+        simulated: true,
+        delivery_id: `DEMO-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        status: "enroute_to_pickup",
+        tracking_url: null,
+        dasher: { name: "Alex M.", rating: 4.8, vehicle: "Red Honda Civic" },
+        estimated_delivery_time: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
+      };
+    }
+    setDelivery(result);
+    setPhase("confirmed");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, grandTotal]);
+
+  if (!isOpen) return null;
+
+  // ── Confirmation screen ─────────────────────────────────────────────────────
+  if (phase === "confirmed" && delivery) {
+    const eta = delivery.estimated_delivery_time
+      ? new Date(delivery.estimated_delivery_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : "~45 min";
+
+    return (
+      <div
+        aria-modal="true"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-[#2d2a25]/50 p-4"
+        role="dialog"
+      >
+        <div className="flex w-full max-w-md flex-col items-center gap-5 rounded-3xl border border-[#eadfce] bg-white p-8 shadow-2xl shadow-[#2d2a25]/20 text-center">
+          <div className="grid size-16 place-items-center rounded-full bg-[#f0faf2] text-3xl">✅</div>
+          <div>
+            <h2 className="text-xl font-bold text-[#2d2a25]">Order Confirmed!</h2>
+            <p className="mt-1 text-xs text-[#9a9287]">Delivery ID: {delivery.delivery_id}</p>
+          </div>
+
+          {delivery.dasher && (
+            <div className="w-full rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-4 text-left">
+              <p className="mb-3 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Your Dasher</p>
+              <div className="flex items-center gap-3">
+                <div className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-2xl">🛵</div>
+                <div className="flex-1">
+                  <p className="font-bold text-[#2d2a25]">{delivery.dasher.name}</p>
+                  {delivery.dasher.vehicle && (
+                    <p className="text-xs text-[#625d52]">{delivery.dasher.vehicle}</p>
+                  )}
+                </div>
+                {delivery.dasher.rating && (
+                  <div className="flex items-center gap-1 rounded-xl bg-[#fff6ee] px-2.5 py-1.5">
+                    <span className="text-xs">⭐</span>
+                    <span className="text-sm font-bold text-primary">{delivery.dasher.rating}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="w-full rounded-2xl bg-[#fff6ee] px-5 py-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-left">
+                <p className="text-xs text-[#625d52]">Estimated arrival</p>
+                <p className="text-lg font-bold text-primary">{eta}</p>
+              </div>
+              <div className="min-w-0 text-right">
+                <p className="text-xs text-[#625d52]">Delivering to</p>
+                <p className="truncate text-sm font-bold text-[#2d2a25]">{address || "Your address"}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Delivery progress bar (visual only) */}
+          <div className="w-full">
+            <div className="mb-2 flex justify-between text-xs text-[#9a9287]">
+              <span>Order placed</span>
+              <span>Pickup</span>
+              <span>On the way</span>
+              <span>Delivered</span>
+            </div>
+            <div className="relative h-1.5 w-full rounded-full bg-[#eadfce]">
+              <div className="absolute left-0 top-0 h-full w-1/3 rounded-full bg-primary transition-all" />
+            </div>
+          </div>
+
+          {delivery.simulated && (
+            <p className="text-xs text-[#b5a99a]">
+              Demo mode — add <code className="rounded bg-[#f5ece0] px-1">DOORDASH_*</code> env vars to dispatch a real dasher
+            </p>
+          )}
+
+          {delivery.tracking_url && (
+            <a
+              href={delivery.tracking_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary/10 px-5 text-sm font-bold text-primary hover:bg-primary/20"
+            >
+              Track Live →
+            </a>
+          )}
+
+          <button
+            className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-white shadow-md shadow-primary/15 hover:bg-primary/90"
+            onClick={onClose}
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Checkout screen (3 columns) ─────────────────────────────────────────────
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#2d2a25]/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#2d2a25]/50 p-3"
       role="dialog"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         className="flex w-full flex-col overflow-hidden rounded-3xl border border-[#eadfce] bg-white shadow-2xl shadow-[#2d2a25]/20"
-        style={{ maxWidth: 1100, maxHeight: "92vh" }}
+        style={{ maxWidth: "min(98vw, 1520px)", maxHeight: "94vh" }}
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-[#eadfce] px-6 py-4">
@@ -59,15 +230,17 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
         </div>
 
         {/* 3-column body */}
-        <div className="grid min-h-0 flex-1 overflow-hidden" style={{ gridTemplateColumns: "260px 280px 1fr" }}>
-
-          {/* Left — ingredient cart */}
+        <div
+          className="grid min-h-0 flex-1 overflow-hidden"
+          style={{ gridTemplateColumns: "300px 340px 1fr" }}
+        >
+          {/* ── Left: ingredient cart ─────────────────────────── */}
           <div className="flex flex-col overflow-y-auto border-r border-[#eadfce] p-5">
             <p className="mb-3 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Your cart</p>
             <ul className="flex-1 divide-y divide-[#f5ece0]">
               {products.map((p) => (
                 <li key={p.name} className="flex items-center justify-between py-2.5">
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
                     <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#fff1e5] text-xs">🛒</span>
                     <span className="truncate text-sm font-medium text-[#2d2a25]">{p.name}</span>
                   </div>
@@ -75,17 +248,16 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
                 </li>
               ))}
             </ul>
-            <div className="mt-3 shrink-0 flex items-center justify-between rounded-2xl bg-[#fff6ee] px-3 py-2.5">
+            <div className="mt-3 flex shrink-0 items-center justify-between rounded-2xl bg-[#fff6ee] px-3 py-2.5">
               <span className="text-xs font-bold text-[#2d2a25]">Subtotal</span>
               <span className="text-sm font-bold text-primary">${subtotal.toFixed(2)}</span>
             </div>
           </div>
 
-          {/* Middle — order details */}
+          {/* ── Middle: order details + address ──────────────── */}
           <div className="flex flex-col overflow-y-auto border-r border-[#eadfce] p-5">
             <p className="mb-4 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Order details</p>
 
-            {/* Fee breakdown */}
             <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-4">
               <div className="space-y-2.5 text-sm">
                 <div className="flex justify-between">
@@ -104,49 +276,73 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
                   <span className="text-[#625d52]">Delivery</span>
                   <span className="font-medium text-[#2d2a25]">${DELIVERY_FEE.toFixed(2)}</span>
                 </div>
-                <div className="border-t border-[#eadfce] pt-2.5 flex justify-between">
+                <div className="flex justify-between border-t border-[#eadfce] pt-2.5">
                   <span className="font-bold text-[#2d2a25]">Total</span>
                   <span className="text-base font-bold text-primary">${grandTotal.toFixed(2)}</span>
                 </div>
               </div>
             </div>
 
-            {/* Estimated delivery */}
             <div className="mt-4 rounded-2xl border border-[#eadfce] bg-[#f0faf2] px-4 py-3">
               <div className="flex items-center gap-2">
-                <span className="text-base">🚚</span>
+                <span>🚚</span>
                 <div>
                   <p className="text-xs font-bold text-primary">Estimated delivery</p>
-                  <p className="text-xs text-[#625d52]">Tomorrow, 9 am – 12 pm</p>
+                  <p className="text-xs text-[#625d52]">~45 min after order</p>
                 </div>
               </div>
             </div>
 
-            {/* Delivery address */}
-            <div className="mt-4 flex-1 flex flex-col">
-              <label className="mb-2 block text-xs font-bold text-[#2d2a25]">
-                Delivery address
-              </label>
-              <input
-                className="w-full rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                placeholder="Street address"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-              />
-              <div className="mt-2 grid grid-cols-2 gap-2">
+            {/* Delivery address with Nominatim autocomplete */}
+            <div className="mt-4 flex flex-col gap-2">
+              <label className="text-xs font-bold text-[#2d2a25]">Delivery address</label>
+              <div ref={addrBoxRef} className="relative">
+                <input
+                  className="w-full rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  placeholder="Start typing your address…"
+                  value={address}
+                  autoComplete="off"
+                  onChange={(e) => handleAddressChange(e.target.value)}
+                  onFocus={() => suggestions.length > 0 && setShowSugg(true)}
+                />
+                {showSugg && suggestions.length > 0 && (
+                  <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-52 overflow-y-auto rounded-xl border border-[#eadfce] bg-white shadow-xl">
+                    {suggestions.map((s, i) => (
+                      <li
+                        key={i}
+                        className="cursor-pointer px-3 py-2.5 text-xs text-[#2d2a25] hover:bg-[#fff6ee] first:rounded-t-xl last:rounded-b-xl"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setAddress(s);
+                          setShowSugg(false);
+                          setSuggestions([]);
+                        }}
+                      >
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
                 <input
                   className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                  placeholder="City"
+                  placeholder="Apt / unit"
                 />
                 <input
                   className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                   placeholder="ZIP code"
                 />
               </div>
+              <textarea
+                className="w-full rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30 resize-none"
+                placeholder="Delivery instructions (optional)"
+                rows={2}
+              />
             </div>
           </div>
 
-          {/* Right — North checkout */}
+          {/* ── Right: North checkout ─────────────────────────── */}
           <div className="flex flex-col p-5">
             <p className="mb-4 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Secure payment</p>
             <div className="flex min-h-0 flex-1 flex-col">
@@ -155,12 +351,11 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
                 total={grandTotal}
                 tax={taxAmount}
                 serviceFee={SERVICE_FEE}
-                onApproved={onClose}
+                onApproved={handleApproved}
                 onError={() => {}}
               />
             </div>
           </div>
-
         </div>
       </div>
     </div>
