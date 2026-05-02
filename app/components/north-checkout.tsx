@@ -132,9 +132,9 @@ export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutPr
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 flex-col gap-4">
       {status === "loading" && (
-        <div className="flex min-h-32 items-center justify-center">
+        <div className="flex flex-1 items-center justify-center">
           <div className="flex items-center gap-2 text-sm text-[#625d52]">
             <span className="size-4 animate-spin rounded-full border-2 border-[#eadfce] border-t-primary" />
             Setting up secure checkout…
@@ -142,8 +142,8 @@ export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutPr
         </div>
       )}
 
-      {/* Always in DOM — North mounts card fields here */}
-      <div id={CONTAINER_ID} className={status === "loading" ? "hidden" : ""} />
+      {/* Always in DOM — North mounts card fields here; min-height gives it room */}
+      <div id={CONTAINER_ID} className={`flex-1${status === "loading" ? " hidden" : ""}`} style={{ minHeight: 380 }} />
 
       {status === "ready" && (
         <button
