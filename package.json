@@ -1,29 +1,35 @@
 {
-  "name": "stockpay",
-  "private": true,
+  "name": "recipe-remix",
   "version": "0.1.0",
-  "type": "module",
+  "private": true,
   "scripts": {
-    "dev": "node server/index.js",
-    "build": "tsc -b && vite build",
-    "preview": "NODE_ENV=production node server/index.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "node prisma/seed.mjs",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
-    "dotenv": "^16.4.7",
-    "express": "^4.18.2",
-    "lucide-react": "^0.468.0",
-    "multer": "^2.0.2",
-    "openai": "^4.77.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "@supabase/supabase-js": "^2.105.1",
+    "next": "16.2.4",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.1",
-    "@types/express": "^4.17.21",
-    "@types/multer": "^1.4.12",
-    "@types/react": "^18.2.48",
-    "@types/react-dom": "^18.2.18",
-    "vite": "^5.0.12",
-    "typescript": "^5.3.3"
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "prisma": "^7.8.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
