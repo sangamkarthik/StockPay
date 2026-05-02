@@ -28,7 +28,7 @@ type MissingIngredientsModalProps = {
 export function MissingIngredientsModal({ ingredients, isOpen, onClose }: MissingIngredientsModalProps) {
   const [phase, setPhase] = useState<ModalPhase>("checkout");
   const [delivery, setDelivery] = useState<DeliveryResult | null>(null);
-  const [address, setAddress] = useState("");
+  const [address, setAddress] = useState("350 5th Ave, New York, NY 10118");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSugg, setShowSugg] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
