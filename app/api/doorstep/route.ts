@@ -10,13 +10,15 @@ function base64url(data: string) {
 }
 
 function makeDoorDashJWT(developerId: string, keyId: string, signingSecret: string) {
-  const header = base64url(JSON.stringify({ alg: "HS256", kid: keyId, "dd-ver": "DD-JWT-V1" }));
+  const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT", kid: keyId, "dd-ver": "DD-JWT-V1" }));
   const now = Math.floor(Date.now() / 1000);
   const payload = base64url(
-    JSON.stringify({ iss: developerId, sub: keyId, exp: now + 300, iat: now }),
+    JSON.stringify({ iss: developerId, sub: keyId, kid: keyId, aud: "doordash", exp: now + 300, iat: now }),
   );
   const signingInput = `${header}.${payload}`;
-  const sig = createHmac("sha256", signingSecret).update(signingInput).digest("base64url");
+  // DoorDash requires the signing secret to be base64url-decoded before use
+  const secretBuf = Buffer.from(signingSecret, "base64url");
+  const sig = createHmac("sha256", secretBuf).update(signingInput).digest("base64url");
   return `${signingInput}.${sig}`;
 }
 
