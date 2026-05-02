@@ -13,7 +13,6 @@ declare global {
     checkout?: {
       mount: (sessionToken: string, containerId: string, opts: { amount: number; tax: number; serviceFee: number }) => Promise<void>;
       submit: () => Promise<Record<string, unknown>>;
-      onPaymentComplete?: (cb: (result: Record<string, unknown>) => void) => void;
     };
   }
 }
@@ -41,6 +40,15 @@ function loadScript(): Promise<void> {
     script.onerror = () => reject(new Error("checkout.js failed to load."));
     document.head.appendChild(script);
   });
+}
+
+function isPaymentSuccessful(result: Record<string, unknown>) {
+  const status = String(result.status ?? result.paymentStatus ?? result.authResponseText ?? "").toLowerCase();
+  if (status.includes("declined") || status.includes("error") || status.includes("failed")) return false;
+  if (status.includes("approved") || status.includes("success")) return true;
+  if ("success" in result) return Boolean(result.success);
+  if ("approved" in result) return Boolean(result.approved);
+  return true;
 }
 
 export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutProps) {
@@ -77,17 +85,6 @@ export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutPr
           serviceFee: 0,
         });
 
-        window.checkout!.onPaymentComplete?.((result) => {
-          const s = String(result.status ?? result.authResponseText ?? "").toLowerCase();
-          if (s.includes("declined") || s.includes("error") || s.includes("failed")) {
-            setStatus("error");
-            setErrorMessage("Payment declined. Please try a different card.");
-          } else {
-            setStatus("approved");
-            onApproved();
-          }
-        });
-
         setStatus("ready");
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Checkout error";
@@ -104,42 +101,49 @@ export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutPr
   const handlePay = useCallback(async () => {
     try {
       setStatus("paying");
-      await window.checkout!.submit();
+      const result = await window.checkout!.submit();
+      if (!isPaymentSuccessful(result)) throw new Error("Payment was not approved.");
+      setStatus("approved");
+      onApproved();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Payment failed";
       setErrorMessage(msg);
       setStatus("error");
       onError(msg);
     }
-  }, [onError]);
+  }, [onApproved, onError]);
+
+  if (status === "approved") {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 text-center">
+        <p className="text-4xl">🎉</p>
+        <p className="mt-3 text-base font-bold text-primary">Order placed!</p>
+        <p className="mt-1 text-sm text-[#625d52]">Your ingredients are on their way.</p>
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="rounded-2xl bg-[#fff1e5] px-4 py-3 text-sm text-[#df6040]">
+        {errorMessage}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       {status === "loading" && (
-        <div className="flex min-h-24 items-center justify-center">
-          <div className="flex items-center gap-3 text-sm text-[#625d52]">
+        <div className="flex min-h-32 items-center justify-center">
+          <div className="flex items-center gap-2 text-sm text-[#625d52]">
             <span className="size-4 animate-spin rounded-full border-2 border-[#eadfce] border-t-primary" />
             Setting up secure checkout…
           </div>
         </div>
       )}
 
-      {status === "error" && (
-        <div className="rounded-2xl bg-[#fff1e5] px-4 py-3 text-sm text-[#df6040]">
-          {errorMessage}
-        </div>
-      )}
-
-      {status === "approved" && (
-        <div className="rounded-2xl bg-primary/10 px-5 py-5 text-center">
-          <p className="text-3xl">🎉</p>
-          <p className="mt-2 text-sm font-bold text-primary">Order placed!</p>
-          <p className="mt-1 text-xs text-[#625d52]">Your ingredients are on their way.</p>
-        </div>
-      )}
-
       {/* Always in DOM — North mounts card fields here */}
-      <div id={CONTAINER_ID} className={status === "loading" || status === "error" || status === "approved" ? "hidden" : ""} />
+      <div id={CONTAINER_ID} className={status === "loading" ? "hidden" : ""} />
 
       {status === "ready" && (
         <button
@@ -167,7 +171,6 @@ function LockIcon() {
     <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24">
       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
       <rect width="14" height="11" x="5" y="11" rx="2" />
-      <path d="M12 16v2" />
     </svg>
   );
 }
