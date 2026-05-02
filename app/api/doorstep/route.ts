@@ -1,26 +1,9 @@
 import { NextResponse } from "next/server";
-import { createHmac } from "crypto";
+import { makeDoorDashJWT } from "./_jwt";
 
 const DOORDASH_API_BASE = "https://openapi.doordash.com/drive/v2";
 const STORE_ADDRESS = "500 7th Ave, New York, NY 10018";
 const STORE_PHONE = "+12125551234";
-
-function base64url(data: string) {
-  return Buffer.from(data).toString("base64url");
-}
-
-function makeDoorDashJWT(developerId: string, keyId: string, signingSecret: string) {
-  const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT", kid: keyId, "dd-ver": "DD-JWT-V1" }));
-  const now = Math.floor(Date.now() / 1000);
-  const payload = base64url(
-    JSON.stringify({ iss: developerId, sub: keyId, kid: keyId, aud: "doordash", exp: now + 300, iat: now }),
-  );
-  const signingInput = `${header}.${payload}`;
-  // DoorDash requires the signing secret to be base64url-decoded before use
-  const secretBuf = Buffer.from(signingSecret, "base64url");
-  const sig = createHmac("sha256", secretBuf).update(signingInput).digest("base64url");
-  return `${signingInput}.${sig}`;
-}
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
@@ -65,16 +48,15 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       simulated: false,
-      delivery_id: data.external_delivery_id ?? data.id ?? externalId,
+      delivery_id: data.external_delivery_id ?? externalId,
       status: data.delivery_status ?? "created",
       tracking_url: data.tracking_url ?? null,
       dasher: data.dasher ?? null,
-      estimated_pickup_time: data.estimated_pickup_time ?? null,
-      estimated_delivery_time: data.estimated_delivery_time ?? null,
+      estimated_pickup_time: data.pickup_time_estimated ?? null,
+      estimated_delivery_time: data.dropoff_time_estimated ?? null,
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Delivery error";
-    console.error("[doorstep]", msg);
+    console.error("[doorstep/create]", err);
     return NextResponse.json(simulatedDelivery());
   }
 }
@@ -83,9 +65,9 @@ function simulatedDelivery() {
   return {
     simulated: true,
     delivery_id: `DEMO-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-    status: "enroute_to_pickup",
+    status: "created",
     tracking_url: null,
-    dasher: { name: "Alex M.", rating: 4.8, vehicle: "Red Honda Civic" },
+    dasher: null,
     estimated_pickup_time: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     estimated_delivery_time: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
   };

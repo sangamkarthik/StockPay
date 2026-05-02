@@ -7,6 +7,19 @@ import type { RecipeIngredient } from "./recipe-ingredients-panel";
 const TAX_RATE = 0.085;
 const SERVICE_FEE = 2.99;
 const DELIVERY_FEE = 4.99;
+const POLL_INTERVAL_MS = 8000;
+
+// DoorDash delivery_status values → human labels + progress (0-100)
+const STATUS_MAP: Record<string, { label: string; progress: number; emoji: string }> = {
+  created:              { label: "Order placed",       progress: 10,  emoji: "✅" },
+  enroute_to_pickup:   { label: "Dasher heading to store", progress: 30, emoji: "🛵" },
+  arrived_at_pickup:   { label: "Dasher at store",    progress: 45,  emoji: "🏪" },
+  picked_up:           { label: "Order picked up",    progress: 60,  emoji: "📦" },
+  enroute_to_dropoff:  { label: "On the way to you",  progress: 80,  emoji: "🚀" },
+  arrived_at_dropoff:  { label: "Dasher at your door",progress: 95,  emoji: "🚪" },
+  delivered:           { label: "Delivered!",         progress: 100, emoji: "🎉" },
+  delivery_cancelled:  { label: "Delivery cancelled", progress: 0,   emoji: "❌" },
+};
 
 type DeliveryResult = {
   simulated: boolean;
@@ -14,9 +27,11 @@ type DeliveryResult = {
   status: string;
   tracking_url: string | null;
   dasher?: { name: string; rating?: number; vehicle?: string } | null;
+  estimated_pickup_time?: string | null;
   estimated_delivery_time?: string | null;
 };
 
+type RefundState = "idle" | "processing" | "done" | "error";
 type ModalPhase = "checkout" | "confirmed";
 
 type MissingIngredientsModalProps = {
@@ -28,23 +43,28 @@ type MissingIngredientsModalProps = {
 export function MissingIngredientsModal({ ingredients, isOpen, onClose }: MissingIngredientsModalProps) {
   const [phase, setPhase] = useState<ModalPhase>("checkout");
   const [delivery, setDelivery] = useState<DeliveryResult | null>(null);
+  const [deliveryStatus, setDeliveryStatus] = useState("created");
+  const [authGuid, setAuthGuid] = useState("");
+  const [refundState, setRefundState] = useState<RefundState>("idle");
+  const [refundError, setRefundError] = useState("");
+
   const [address, setAddress] = useState("350 5th Ave, New York, NY 10118");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSugg, setShowSugg] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const addrBoxRef = useRef<HTMLDivElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const products = ingredients.map((i) => ({
     name: i.name,
     price: i.price ?? 2.99,
     quantity: 1,
   }));
-
   const subtotal = products.reduce((sum, p) => sum + p.price, 0);
   const taxAmount = subtotal * TAX_RATE;
   const grandTotal = subtotal + taxAmount + SERVICE_FEE + DELIVERY_FEE;
 
-  // Close suggestions when clicking outside
+  // Close address suggestions on outside click
   useEffect(() => {
     function onDown(e: MouseEvent) {
       if (addrBoxRef.current && !addrBoxRef.current.contains(e.target as Node)) {
@@ -54,6 +74,33 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
+
+  // Poll DoorDash delivery status while confirmed
+  useEffect(() => {
+    if (phase !== "confirmed" || !delivery) return;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/doorstep/status?id=${delivery.delivery_id}`);
+        const data = await res.json();
+        if (data.status) setDeliveryStatus(data.status);
+      } catch { /* ignore */ }
+    };
+    poll();
+    pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [phase, delivery]);
+
+  // Auto-trigger refund when DoorDash cancels
+  useEffect(() => {
+    if (
+      deliveryStatus === "delivery_cancelled" &&
+      refundState === "idle" &&
+      authGuid
+    ) {
+      handleRefund();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliveryStatus]);
 
   const handleAddressChange = useCallback((val: string) => {
     setAddress(val);
@@ -69,20 +116,30 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
         const names = data.map((r) => r.display_name);
         setSuggestions(names);
         if (names.length > 0) setShowSugg(true);
-      } catch {
-        setSuggestions([]);
-      }
+      } catch { setSuggestions([]); }
     }, 380);
   }, []);
 
-  const handleApproved = useCallback(async () => {
+  const handleApproved = useCallback(async (paymentResult: Record<string, unknown>) => {
+    // Extract auth GUID — North may return it under several field names
+    const guid = String(
+      paymentResult.authGuid ??
+      paymentResult.auth_guid ??
+      paymentResult.orig_auth_guid ??
+      paymentResult.transactionId ??
+      paymentResult.transaction_id ??
+      paymentResult.referenceNumber ??
+      "",
+    );
+    setAuthGuid(guid);
+
     let result: DeliveryResult;
     try {
       const res = await fetch("/api/doorstep", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          deliveryAddress: address || "Demo Street, San Francisco, CA",
+          deliveryAddress: address,
           items: products.map((p) => p.name),
           orderTotal: grandTotal,
         }),
@@ -92,21 +149,43 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
       result = {
         simulated: true,
         delivery_id: `DEMO-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-        status: "enroute_to_pickup",
+        status: "created",
         tracking_url: null,
-        dasher: { name: "Alex M.", rating: 4.8, vehicle: "Red Honda Civic" },
+        dasher: null,
         estimated_delivery_time: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
       };
     }
     setDelivery(result);
+    setDeliveryStatus(result.status ?? "created");
     setPhase("confirmed");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address, grandTotal]);
 
+  const handleRefund = useCallback(async () => {
+    setRefundState("processing");
+    try {
+      const res = await fetch("/api/north/refund", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ authGuid, amount: grandTotal }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Refund failed");
+      setRefundState("done");
+    } catch (err) {
+      setRefundError(err instanceof Error ? err.message : "Refund failed");
+      setRefundState("error");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authGuid, grandTotal]);
+
   if (!isOpen) return null;
 
-  // ── Confirmation screen ─────────────────────────────────────────────────────
+  // ── Confirmation / tracking screen ─────────────────────────────────────────
   if (phase === "confirmed" && delivery) {
+    const statusInfo = STATUS_MAP[deliveryStatus] ?? { label: deliveryStatus, progress: 20, emoji: "🚚" };
+    const cancelled = deliveryStatus === "delivery_cancelled";
+    const delivered = deliveryStatus === "delivered";
     const eta = delivery.estimated_delivery_time
       ? new Date(delivery.estimated_delivery_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       : "~45 min";
@@ -117,83 +196,118 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
         className="fixed inset-0 z-50 flex items-center justify-center bg-[#2d2a25]/50 p-4"
         role="dialog"
       >
-        <div className="flex w-full max-w-md flex-col items-center gap-5 rounded-3xl border border-[#eadfce] bg-white p-8 shadow-2xl shadow-[#2d2a25]/20 text-center">
-          <div className="grid size-16 place-items-center rounded-full bg-[#f0faf2] text-3xl">✅</div>
-          <div>
-            <h2 className="text-xl font-bold text-[#2d2a25]">Order Confirmed!</h2>
-            <p className="mt-1 text-xs text-[#9a9287]">Delivery ID: {delivery.delivery_id}</p>
+        <div className="flex w-full max-w-lg flex-col gap-5 rounded-3xl border border-[#eadfce] bg-white p-8 shadow-2xl shadow-[#2d2a25]/20">
+
+          {/* Header */}
+          <div className="flex items-center gap-3">
+            <div className={`grid size-14 shrink-0 place-items-center rounded-full text-2xl ${cancelled ? "bg-red-50" : delivered ? "bg-[#f0faf2]" : "bg-[#fff6ee]"}`}>
+              {statusInfo.emoji}
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-[#2d2a25]">{statusInfo.label}</h2>
+              <p className="text-xs text-[#9a9287]">Delivery ID: {delivery.delivery_id}</p>
+            </div>
           </div>
 
+          {/* Progress bar */}
+          {!cancelled && (
+            <div>
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-[#eadfce]">
+                <div
+                  className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all duration-700"
+                  style={{ width: `${statusInfo.progress}%` }}
+                />
+              </div>
+              <div className="mt-1.5 flex justify-between text-[10px] text-[#b5a99a]">
+                <span>Placed</span><span>Pickup</span><span>On the way</span><span>Delivered</span>
+              </div>
+            </div>
+          )}
+
+          {/* Dasher card */}
           {delivery.dasher && (
-            <div className="w-full rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-4 text-left">
-              <p className="mb-3 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Your Dasher</p>
+            <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-4">
               <div className="flex items-center gap-3">
-                <div className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-2xl">🛵</div>
+                <div className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-xl">🛵</div>
                 <div className="flex-1">
                   <p className="font-bold text-[#2d2a25]">{delivery.dasher.name}</p>
-                  {delivery.dasher.vehicle && (
-                    <p className="text-xs text-[#625d52]">{delivery.dasher.vehicle}</p>
-                  )}
+                  {delivery.dasher.vehicle && <p className="text-xs text-[#625d52]">{delivery.dasher.vehicle}</p>}
                 </div>
                 {delivery.dasher.rating && (
-                  <div className="flex items-center gap-1 rounded-xl bg-[#fff6ee] px-2.5 py-1.5">
-                    <span className="text-xs">⭐</span>
-                    <span className="text-sm font-bold text-primary">{delivery.dasher.rating}</span>
-                  </div>
+                  <span className="flex items-center gap-1 rounded-xl bg-[#fff6ee] px-2.5 py-1 text-sm font-bold text-primary">
+                    ⭐ {delivery.dasher.rating}
+                  </span>
                 )}
               </div>
             </div>
           )}
 
-          <div className="w-full rounded-2xl bg-[#fff6ee] px-5 py-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="text-left">
+          {/* ETA / address */}
+          {!cancelled && (
+            <div className="flex items-center justify-between rounded-2xl bg-[#fff6ee] px-5 py-3">
+              <div>
                 <p className="text-xs text-[#625d52]">Estimated arrival</p>
-                <p className="text-lg font-bold text-primary">{eta}</p>
+                <p className="text-base font-bold text-primary">{delivered ? "Delivered!" : eta}</p>
               </div>
               <div className="min-w-0 text-right">
                 <p className="text-xs text-[#625d52]">Delivering to</p>
-                <p className="truncate text-sm font-bold text-[#2d2a25]">{address || "Your address"}</p>
+                <p className="max-w-[200px] truncate text-sm font-bold text-[#2d2a25]">{address}</p>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Delivery progress bar (visual only) */}
-          <div className="w-full">
-            <div className="mb-2 flex justify-between text-xs text-[#9a9287]">
-              <span>Order placed</span>
-              <span>Pickup</span>
-              <span>On the way</span>
-              <span>Delivered</span>
+          {/* Cancellation + refund */}
+          {cancelled && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center">
+              <p className="font-bold text-red-600">Delivery was cancelled</p>
+              <p className="mt-1 text-sm text-red-500">
+                {refundState === "done"
+                  ? `✅ Refund of $${grandTotal.toFixed(2)} has been issued to your card.`
+                  : refundState === "processing"
+                  ? "Processing refund…"
+                  : refundState === "error"
+                  ? `Refund error: ${refundError}`
+                  : authGuid
+                  ? "Issuing refund automatically…"
+                  : `A refund of $${grandTotal.toFixed(2)} will be issued.`}
+              </p>
+              {refundState === "error" && (
+                <button
+                  className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
+                  onClick={handleRefund}
+                >
+                  Retry Refund
+                </button>
+              )}
             </div>
-            <div className="relative h-1.5 w-full rounded-full bg-[#eadfce]">
-              <div className="absolute left-0 top-0 h-full w-1/3 rounded-full bg-primary transition-all" />
-            </div>
-          </div>
+          )}
 
+          {/* Simulated notice */}
           {delivery.simulated && (
-            <p className="text-xs text-[#b5a99a]">
-              Demo mode — add <code className="rounded bg-[#f5ece0] px-1">DOORDASH_*</code> env vars to dispatch a real dasher
+            <p className="text-center text-xs text-[#b5a99a]">
+              Demo mode — add <code className="rounded bg-[#f5ece0] px-1">DOORDASH_*</code> env vars for real dispatch
             </p>
           )}
 
-          {delivery.tracking_url && (
-            <a
-              href={delivery.tracking_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary/10 px-5 text-sm font-bold text-primary hover:bg-primary/20"
+          {/* Track + Done */}
+          <div className="flex gap-3">
+            {delivery.tracking_url && !cancelled && (
+              <a
+                href={delivery.tracking_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-primary bg-white text-sm font-bold text-primary hover:bg-primary/5"
+              >
+                Track live →
+              </a>
+            )}
+            <button
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-primary text-sm font-bold text-white hover:bg-primary/90"
+              onClick={onClose}
             >
-              Track Live →
-            </a>
-          )}
-
-          <button
-            className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-white shadow-md shadow-primary/15 hover:bg-primary/90"
-            onClick={onClose}
-          >
-            Done
-          </button>
+              {cancelled ? "Close" : delivered ? "Done" : "Minimize"}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -224,17 +338,13 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
             className="grid size-9 shrink-0 place-items-center rounded-xl border border-[#eadfce] text-xl text-[#625d52] transition hover:bg-[#fff6ee]"
             onClick={onClose}
             type="button"
-          >
-            ×
-          </button>
+          >×</button>
         </div>
 
         {/* 3-column body */}
-        <div
-          className="grid min-h-0 flex-1 overflow-hidden"
-          style={{ gridTemplateColumns: "300px 340px 1fr" }}
-        >
-          {/* ── Left: ingredient cart ─────────────────────────── */}
+        <div className="grid min-h-0 flex-1 overflow-hidden" style={{ gridTemplateColumns: "300px 340px 1fr" }}>
+
+          {/* ── Left: cart ─────────────────────────── */}
           <div className="flex flex-col overflow-y-auto border-r border-[#eadfce] p-5">
             <p className="mb-3 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Your cart</p>
             <ul className="flex-1 divide-y divide-[#f5ece0]">
@@ -254,28 +364,23 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
             </div>
           </div>
 
-          {/* ── Middle: order details + address ──────────────── */}
+          {/* ── Middle: order details + address ──────── */}
           <div className="flex flex-col overflow-y-auto border-r border-[#eadfce] p-5">
             <p className="mb-4 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Order details</p>
 
             <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-4">
               <div className="space-y-2.5 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-[#625d52]">Subtotal</span>
-                  <span className="font-medium text-[#2d2a25]">${subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#625d52]">Tax (8.5%)</span>
-                  <span className="font-medium text-[#2d2a25]">${taxAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#625d52]">Service fee</span>
-                  <span className="font-medium text-[#2d2a25]">${SERVICE_FEE.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#625d52]">Delivery</span>
-                  <span className="font-medium text-[#2d2a25]">${DELIVERY_FEE.toFixed(2)}</span>
-                </div>
+                {[
+                  ["Subtotal", `$${subtotal.toFixed(2)}`],
+                  ["Tax (8.5%)", `$${taxAmount.toFixed(2)}`],
+                  ["Service fee", `$${SERVICE_FEE.toFixed(2)}`],
+                  ["Delivery", `$${DELIVERY_FEE.toFixed(2)}`],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between">
+                    <span className="text-[#625d52]">{label}</span>
+                    <span className="font-medium text-[#2d2a25]">{value}</span>
+                  </div>
+                ))}
                 <div className="flex justify-between border-t border-[#eadfce] pt-2.5">
                   <span className="font-bold text-[#2d2a25]">Total</span>
                   <span className="text-base font-bold text-primary">${grandTotal.toFixed(2)}</span>
@@ -293,7 +398,6 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
               </div>
             </div>
 
-            {/* Delivery address with Nominatim autocomplete */}
             <div className="mt-4 flex flex-col gap-2">
               <label className="text-xs font-bold text-[#2d2a25]">Delivery address</label>
               <div ref={addrBoxRef} className="relative">
@@ -311,38 +415,25 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
                       <li
                         key={i}
                         className="cursor-pointer px-3 py-2.5 text-xs text-[#2d2a25] hover:bg-[#fff6ee] first:rounded-t-xl last:rounded-b-xl"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          setAddress(s);
-                          setShowSugg(false);
-                          setSuggestions([]);
-                        }}
-                      >
-                        {s}
-                      </li>
+                        onMouseDown={(e) => { e.preventDefault(); setAddress(s); setShowSugg(false); setSuggestions([]); }}
+                      >{s}</li>
                     ))}
                   </ul>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <input
-                  className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                  placeholder="Apt / unit"
-                />
-                <input
-                  className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                  placeholder="ZIP code"
-                />
+                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Apt / unit" />
+                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="ZIP code" />
               </div>
               <textarea
-                className="w-full rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30 resize-none"
+                className="w-full resize-none rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 placeholder="Delivery instructions (optional)"
                 rows={2}
               />
             </div>
           </div>
 
-          {/* ── Right: North checkout ─────────────────────────── */}
+          {/* ── Right: North checkout ─────────────────── */}
           <div className="flex flex-col p-5">
             <p className="mb-4 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Secure payment</p>
             <div className="flex min-h-0 flex-1 flex-col">

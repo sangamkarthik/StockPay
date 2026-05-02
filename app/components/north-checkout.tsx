@@ -7,7 +7,7 @@ type NorthCheckoutProps = {
   total: number;
   tax: number;
   serviceFee: number;
-  onApproved: () => void;
+  onApproved: (result: Record<string, unknown>) => void;
   onError: (message: string) => void;
 };
 
@@ -104,7 +104,7 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
       const result = await window.checkout!.submit();
       if (!isPaymentSuccessful(result)) throw new Error("Payment was not approved.");
       setStatus("approved");
-      onApproved();
+      onApproved(result);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Payment failed";
       setErrorMessage(msg);
