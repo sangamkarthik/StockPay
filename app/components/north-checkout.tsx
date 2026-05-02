@@ -12,7 +12,7 @@ type NorthCheckoutProps = {
 declare global {
   interface Window {
     NorthCheckout?: {
-      init: (config: { sessionToken: string }) => void;
+      init: (config: { sessionToken: string; containerId?: string }) => void;
     };
   }
 }
@@ -42,7 +42,10 @@ export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutPr
         }
 
         if (window.NorthCheckout) {
-          window.NorthCheckout.init({ sessionToken: data.sessionToken });
+          window.NorthCheckout.init({
+            sessionToken: data.sessionToken,
+            containerId: "north-checkout-container",
+          });
           setStatus("ready");
         } else {
           throw new Error("North checkout script not available.");
@@ -104,7 +107,11 @@ export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutPr
         </div>
       )}
 
-      <div id="north-checkout-container" className={status === "loading" || status === "error" || status === "approved" ? "hidden" : ""} />
+      {/* Always in DOM so North can mount into it before status updates */}
+      <div
+        id="north-checkout-container"
+        className={status === "loading" || status === "error" || status === "approved" ? "hidden" : "block"}
+      />
     </>
   );
 }
