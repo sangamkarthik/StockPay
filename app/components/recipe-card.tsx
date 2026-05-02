@@ -1,3 +1,5 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 
@@ -42,7 +44,8 @@ export function RecipeCard({
         />
         <button
           aria-label={`Save ${title}`}
-          className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-white/90 text-primary shadow-sm backdrop-blur"
+          className="absolute right-3 top-3 z-10 grid size-9 place-items-center rounded-full bg-white/90 text-primary shadow-sm backdrop-blur"
+          onClick={(e) => e.stopPropagation()}
           type="button"
         >
           <BookmarkIcon />
@@ -54,15 +57,7 @@ export function RecipeCard({
       </div>
 
       <div className="p-4">
-        <h3 className="text-base font-bold text-[#2d2a25]">
-          {href ? (
-            <Link className="hover:text-primary" href={href}>
-              {title}
-            </Link>
-          ) : (
-            title
-          )}
-        </h3>
+        <h3 className="text-base font-bold text-[#2d2a25]">{title}</h3>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#625d52]">
           <span className="font-bold text-[#e3a217]">★ {rating}</span>
           <span>({reviews})</span>
@@ -97,7 +92,7 @@ export function RecipeCard({
     </article>
   );
 
-  return card;
+  return href ? <Link href={href}>{card}</Link> : card;
 }
 
 function BookmarkIcon() {

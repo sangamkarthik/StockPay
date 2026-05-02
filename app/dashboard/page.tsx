@@ -17,6 +17,7 @@ const recipes: RecipeCardProps[] = [
   },
   {
     title: "Teriyaki Tofu Stir Fry",
+    href: "/recipes/2",
     image: "/images/pasta-hero.png",
     cookTime: "30 min",
     rating: "4.6",
@@ -26,6 +27,7 @@ const recipes: RecipeCardProps[] = [
   },
   {
     title: "Hearty Minestrone Soup",
+    href: "/recipes/3",
     image: "/images/pasta-thumb.png",
     cookTime: "40 min",
     rating: "4.7",
@@ -35,6 +37,7 @@ const recipes: RecipeCardProps[] = [
   },
   {
     title: "Chicken Tacos",
+    href: "/recipes/4",
     image: "/images/pasta-hero.png",
     cookTime: "20 min",
     rating: "4.5",
