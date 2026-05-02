@@ -85,6 +85,21 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
           serviceFee: data.serviceFee,
         });
 
+        // Safari 17+ requires allow="payment" on any iframe hosting Apple Pay.
+        // checkout.js creates the iframe — patch it after mount.
+        if (container) {
+          const applyPaymentAllow = (root: Element) => {
+            root.querySelectorAll("iframe").forEach((f) => {
+              if (!f.getAttribute("allow")?.includes("payment")) {
+                f.setAttribute("allow", [f.getAttribute("allow"), "payment"].filter(Boolean).join("; "));
+              }
+            });
+          };
+          applyPaymentAllow(container);
+          const observer = new MutationObserver(() => applyPaymentAllow(container));
+          observer.observe(container, { childList: true, subtree: true });
+        }
+
         setStatus("ready");
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Checkout error";
