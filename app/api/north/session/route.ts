@@ -6,11 +6,7 @@ function roundMoney(value: number) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
 
-type Product = {
-  name: string;
-  price: number;
-  quantity: number;
-};
+type Product = { name: string; price: number; quantity: number };
 
 export async function POST(request: Request) {
   const privateKey = process.env.NORTH_PRIVATE_API_KEY;
@@ -18,17 +14,20 @@ export async function POST(request: Request) {
   const profileId = process.env.NORTH_PROFILE_ID;
 
   if (!privateKey || !checkoutId || !profileId) {
-    return NextResponse.json(
-      { error: "North checkout is not configured." },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "North checkout is not configured." }, { status: 500 });
   }
 
   let products: Product[] = [];
+  let taxOverride: number | undefined;
+  let serviceFeeOverride: number | undefined;
+  let totalOverride: number | undefined;
 
   try {
     const body = await request.json();
     products = Array.isArray(body.products) ? body.products : [];
+    taxOverride = typeof body.tax === "number" ? body.tax : undefined;
+    serviceFeeOverride = typeof body.serviceFee === "number" ? body.serviceFee : undefined;
+    totalOverride = typeof body.total === "number" ? body.total : undefined;
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
@@ -41,10 +40,10 @@ export async function POST(request: Request) {
       quantity: Number(p.quantity || 1),
     }));
 
-  const amount = normalizedProducts.reduce(
-    (sum, p) => sum + p.price * p.quantity,
-    0,
-  );
+  const subtotal = normalizedProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+  const tax = taxOverride ?? 0;
+  const serviceFee = serviceFeeOverride ?? 0;
+  const amount = totalOverride ?? roundMoney(subtotal + tax + serviceFee);
 
   try {
     const response = await fetch(`${NORTH_API_BASE}/api/sessions`, {
@@ -57,8 +56,8 @@ export async function POST(request: Request) {
         checkoutId,
         profileId,
         amount: roundMoney(amount),
-        tax: 0,
-        serviceFee: 0,
+        tax: roundMoney(tax),
+        serviceFee: roundMoney(serviceFee),
         products: normalizedProducts,
         metadata: JSON.stringify({}),
       }),
@@ -74,13 +73,15 @@ export async function POST(request: Request) {
     }
 
     const sessionToken =
-      payload.sessionToken ||
-      payload.token ||
-      payload.data?.sessionToken ||
-      payload.data?.token ||
-      "";
+      payload.sessionToken || payload.token ||
+      payload.data?.sessionToken || payload.data?.token || "";
 
-    return NextResponse.json({ sessionToken, amount: roundMoney(amount) });
+    return NextResponse.json({
+      sessionToken,
+      amount: roundMoney(amount),
+      tax: roundMoney(tax),
+      serviceFee: roundMoney(serviceFee),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Network error";
     return NextResponse.json({ error: message }, { status: 502 });

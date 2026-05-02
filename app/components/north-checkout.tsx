@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type NorthCheckoutProps = {
   products: Array<{ name: string; price: number; quantity: number }>;
+  total: number;
+  tax: number;
+  serviceFee: number;
   onApproved: () => void;
   onError: (message: string) => void;
 };
@@ -51,11 +54,10 @@ function isPaymentSuccessful(result: Record<string, unknown>) {
   return true;
 }
 
-export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutProps) {
+export function NorthCheckout({ products, total, tax, serviceFee, onApproved, onError }: NorthCheckoutProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "paying" | "approved" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const mountedRef = useRef(false);
-  const amountRef = useRef(0);
 
   useEffect(() => {
     if (mountedRef.current) return;
@@ -66,13 +68,11 @@ export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutPr
         const res = await fetch("/api/north/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ products }),
+          body: JSON.stringify({ products, tax, serviceFee, total }),
         });
 
         const data = await res.json();
         if (!res.ok || !data.sessionToken) throw new Error(data.error || "Could not create checkout session.");
-
-        amountRef.current = data.amount ?? 0;
 
         await loadScript();
 
@@ -81,8 +81,8 @@ export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutPr
 
         await window.checkout!.mount(data.sessionToken, CONTAINER_ID, {
           amount: data.amount,
-          tax: 0,
-          serviceFee: 0,
+          tax: data.tax,
+          serviceFee: data.serviceFee,
         });
 
         setStatus("ready");
@@ -142,8 +142,7 @@ export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutPr
         </div>
       )}
 
-      {/* Always in DOM — North mounts card fields here; min-height gives it room */}
-      <div id={CONTAINER_ID} className={`flex-1${status === "loading" ? " hidden" : ""}`} style={{ minHeight: 380 }} />
+      <div id={CONTAINER_ID} className={`flex-1${status === "loading" ? " hidden" : ""}`} style={{ minHeight: 460 }} />
 
       {status === "ready" && (
         <button
@@ -152,7 +151,7 @@ export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutPr
           type="button"
         >
           <LockIcon />
-          Pay ${amountRef.current.toFixed(2)} securely
+          Pay ${total.toFixed(2)} securely
         </button>
       )}
 
