@@ -1,7 +1,6 @@
 "use client";
 
-import Script from "next/script";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type NorthCheckoutProps = {
   products: Array<{ name: string; price: number; quantity: number }>;
@@ -11,23 +10,50 @@ type NorthCheckoutProps = {
 
 declare global {
   interface Window {
-    NorthCheckout?: {
-      init: (config: { sessionToken: string; containerId?: string }) => void;
+    checkout?: {
+      mount: (sessionToken: string, containerId: string, opts: { amount: number; tax: number; serviceFee: number }) => Promise<void>;
+      submit: () => Promise<Record<string, unknown>>;
+      onPaymentComplete?: (cb: (result: Record<string, unknown>) => void) => void;
     };
   }
+}
+
+const NORTH_SCRIPT_URL = "https://checkout.north.com/checkout.js";
+const CONTAINER_ID = "north-checkout-container";
+
+function loadScript(): Promise<void> {
+  if (window.checkout) return Promise.resolve();
+
+  const existing = document.getElementById("north-checkout-js") as HTMLScriptElement | null;
+  if (existing) {
+    return new Promise((resolve, reject) => {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("checkout.js failed to load.")), { once: true });
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.id = "north-checkout-js";
+    script.src = NORTH_SCRIPT_URL;
+    script.async = true;
+    script.onload = () => (window.checkout ? resolve() : reject(new Error("checkout.js loaded but window.checkout is missing.")));
+    script.onerror = () => reject(new Error("checkout.js failed to load."));
+    document.head.appendChild(script);
+  });
 }
 
 export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "paying" | "approved" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
-  const [scriptLoaded, setScriptLoaded] = useState(false);
   const mountedRef = useRef(false);
+  const amountRef = useRef(0);
 
   useEffect(() => {
-    if (!scriptLoaded || mountedRef.current) return;
+    if (mountedRef.current) return;
     mountedRef.current = true;
 
-    async function initCheckout() {
+    async function init() {
       try {
         const res = await fetch("/api/north/session", {
           method: "POST",
@@ -36,20 +62,33 @@ export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutPr
         });
 
         const data = await res.json();
+        if (!res.ok || !data.sessionToken) throw new Error(data.error || "Could not create checkout session.");
 
-        if (!res.ok || !data.sessionToken) {
-          throw new Error(data.error || "Could not start checkout.");
-        }
+        amountRef.current = data.amount ?? 0;
 
-        if (window.NorthCheckout) {
-          window.NorthCheckout.init({
-            sessionToken: data.sessionToken,
-            containerId: "north-checkout-container",
-          });
-          setStatus("ready");
-        } else {
-          throw new Error("North checkout script not available.");
-        }
+        await loadScript();
+
+        const container = document.getElementById(CONTAINER_ID);
+        if (container) container.innerHTML = "";
+
+        await window.checkout!.mount(data.sessionToken, CONTAINER_ID, {
+          amount: data.amount,
+          tax: 0,
+          serviceFee: 0,
+        });
+
+        window.checkout!.onPaymentComplete?.((result) => {
+          const s = String(result.status ?? result.authResponseText ?? "").toLowerCase();
+          if (s.includes("declined") || s.includes("error") || s.includes("failed")) {
+            setStatus("error");
+            setErrorMessage("Payment declined. Please try a different card.");
+          } else {
+            setStatus("approved");
+            onApproved();
+          }
+        });
+
+        setStatus("ready");
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Checkout error";
         setErrorMessage(msg);
@@ -58,37 +97,29 @@ export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutPr
       }
     }
 
-    initCheckout();
-  }, [scriptLoaded, products, onError]);
+    init();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  useEffect(() => {
-    function handleApproved() {
-      setStatus("approved");
-      onApproved();
+  const handlePay = useCallback(async () => {
+    try {
+      setStatus("paying");
+      await window.checkout!.submit();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Payment failed";
+      setErrorMessage(msg);
+      setStatus("error");
+      onError(msg);
     }
-
-    window.addEventListener("north:approved", handleApproved);
-    return () => window.removeEventListener("north:approved", handleApproved);
-  }, [onApproved]);
+  }, [onError]);
 
   return (
-    <>
-      <Script
-        src="https://checkout.north.com/js/embed.js"
-        strategy="afterInteractive"
-        onLoad={() => setScriptLoaded(true)}
-        onError={() => {
-          setStatus("error");
-          setErrorMessage("Failed to load payment script.");
-          onError("Failed to load payment script.");
-        }}
-      />
-
+    <div className="space-y-4">
       {status === "loading" && (
-        <div className="flex min-h-32 items-center justify-center">
+        <div className="flex min-h-24 items-center justify-center">
           <div className="flex items-center gap-3 text-sm text-[#625d52]">
             <span className="size-4 animate-spin rounded-full border-2 border-[#eadfce] border-t-primary" />
-            Setting up checkout…
+            Setting up secure checkout…
           </div>
         </div>
       )}
@@ -100,18 +131,43 @@ export function NorthCheckout({ products, onApproved, onError }: NorthCheckoutPr
       )}
 
       {status === "approved" && (
-        <div className="rounded-2xl bg-primary/10 px-4 py-4 text-center">
-          <p className="text-2xl">🎉</p>
-          <p className="mt-1 text-sm font-bold text-primary">Order placed!</p>
+        <div className="rounded-2xl bg-primary/10 px-5 py-5 text-center">
+          <p className="text-3xl">🎉</p>
+          <p className="mt-2 text-sm font-bold text-primary">Order placed!</p>
           <p className="mt-1 text-xs text-[#625d52]">Your ingredients are on their way.</p>
         </div>
       )}
 
-      {/* Always in DOM so North can mount into it before status updates */}
-      <div
-        id="north-checkout-container"
-        className={status === "loading" || status === "error" || status === "approved" ? "hidden" : "block"}
-      />
-    </>
+      {/* Always in DOM — North mounts card fields here */}
+      <div id={CONTAINER_ID} className={status === "loading" || status === "error" || status === "approved" ? "hidden" : ""} />
+
+      {status === "ready" && (
+        <button
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white shadow-md shadow-primary/15 transition hover:bg-primary/90"
+          onClick={handlePay}
+          type="button"
+        >
+          <LockIcon />
+          Pay ${amountRef.current.toFixed(2)} securely
+        </button>
+      )}
+
+      {status === "paying" && (
+        <div className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary/80 px-4 text-sm font-bold text-white">
+          <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+          Authorizing…
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24">
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      <rect width="14" height="11" x="5" y="11" rx="2" />
+      <path d="M12 16v2" />
+    </svg>
   );
 }
