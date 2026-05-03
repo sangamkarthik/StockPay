@@ -26,7 +26,6 @@ const CONTAINER_ID = "north-checkout-container";
 
 function loadScript(): Promise<void> {
   if (window.checkout) return Promise.resolve();
-
   const existing = document.getElementById("north-checkout-js") as HTMLScriptElement | null;
   if (existing) {
     return new Promise((resolve, reject) => {
@@ -34,7 +33,6 @@ function loadScript(): Promise<void> {
       existing.addEventListener("error", () => reject(new Error("checkout.js failed to load.")), { once: true });
     });
   }
-
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.id = "north-checkout-js";
@@ -59,12 +57,39 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
   const [status, setStatus] = useState<"loading" | "ready" | "paying" | "approved" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const mountedRef = useRef(false);
-  // Prevents double-firing when both onPaymentComplete and submit() resolve
   const completedRef = useRef(false);
+  // Keep latest callbacks in a ref so postMessage listener always calls current version
+  const onApprovedRef = useRef(onApproved);
+  const onErrorRef = useRef(onError);
+  useEffect(() => { onApprovedRef.current = onApproved; }, [onApproved]);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
   useEffect(() => {
     if (mountedRef.current) return;
     mountedRef.current = true;
+
+    // postMessage fallback — Apple Pay and Google Pay may complete via
+    // cross-origin iframe messages rather than onPaymentComplete.
+    function handleMessage(e: MessageEvent) {
+      if (completedRef.current) return;
+      let data: Record<string, unknown> = {};
+      try { data = typeof e.data === "string" ? JSON.parse(e.data) : e.data; } catch { return; }
+      if (!data || typeof data !== "object") return;
+
+      const isComplete =
+        data.type === "payment_complete" ||
+        data.type === "checkout:complete" ||
+        data.event === "approved" ||
+        data.paymentStatus === "approved" ||
+        (data.authResponseText && isPaymentSuccessful(data));
+
+      if (isComplete) {
+        completedRef.current = true;
+        setStatus("approved");
+        onApprovedRef.current(data);
+      }
+    }
+    window.addEventListener("message", handleMessage);
 
     async function init() {
       try {
@@ -73,7 +98,6 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ products, tax, serviceFee, total }),
         });
-
         const data = await res.json();
         if (!res.ok || !data.sessionToken) throw new Error(data.error || "Could not create checkout session.");
 
@@ -82,30 +106,11 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
         const container = document.getElementById(CONTAINER_ID);
         if (container) container.innerHTML = "";
 
-        // Wire up onPaymentComplete BEFORE mount so Apple Pay / Google Pay
-        // wallet completions (which bypass submit()) are caught.
-        window.checkout!.onPaymentComplete?.((result) => {
-          if (completedRef.current) return;
-          completedRef.current = true;
-          if (isPaymentSuccessful(result)) {
-            setStatus("approved");
-            onApproved(result);
-          } else {
-            const msg = String(result.authResponseText ?? result.status ?? "Payment declined");
-            setErrorMessage(msg);
-            setStatus("error");
-            onError(msg);
-          }
-        });
-
-        // Set up allow="payment" observer before mount — Safari 17+ requires it.
+        // allow="payment" observer — must start before mount for Safari 17+
         const applyPaymentAllow = (root: Element) => {
           root.querySelectorAll("iframe").forEach((f) => {
             if (!f.getAttribute("allow")?.includes("payment")) {
-              f.setAttribute(
-                "allow",
-                [f.getAttribute("allow"), "payment"].filter(Boolean).join("; "),
-              );
+              f.setAttribute("allow", [f.getAttribute("allow"), "payment"].filter(Boolean).join("; "));
             }
           });
         };
@@ -122,16 +127,35 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
 
         if (container) applyPaymentAllow(container);
 
+        // Register onPaymentComplete AFTER mount — some SDKs require this
+        if (typeof window.checkout!.onPaymentComplete === "function") {
+          window.checkout!.onPaymentComplete((result) => {
+            if (completedRef.current) return;
+            completedRef.current = true;
+            if (isPaymentSuccessful(result)) {
+              setStatus("approved");
+              onApprovedRef.current(result);
+            } else {
+              const msg = String(result.authResponseText ?? result.status ?? "Payment declined");
+              setErrorMessage(msg);
+              setStatus("error");
+              onErrorRef.current(msg);
+            }
+          });
+        }
+
         setStatus("ready");
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Checkout error";
         setErrorMessage(msg);
         setStatus("error");
-        onError(msg);
+        onErrorRef.current(msg);
       }
     }
 
     init();
+
+    return () => window.removeEventListener("message", handleMessage);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -139,27 +163,26 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
     try {
       setStatus("paying");
       const result = await window.checkout!.submit();
-      // onPaymentComplete may have already handled this
       if (completedRef.current) return;
       completedRef.current = true;
       if (!isPaymentSuccessful(result)) throw new Error("Payment was not approved.");
       setStatus("approved");
-      onApproved(result);
+      onApprovedRef.current(result);
     } catch (err) {
       if (completedRef.current) return;
       const msg = err instanceof Error ? err.message : "Payment failed";
       setErrorMessage(msg);
       setStatus("error");
-      onError(msg);
+      onErrorRef.current(msg);
     }
-  }, [onApproved, onError]);
+  }, []);
 
   if (status === "approved") {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
         <p className="text-4xl">🎉</p>
-        <p className="mt-3 text-base font-bold text-primary">Order placed!</p>
-        <p className="mt-1 text-sm text-[#625d52]">Your ingredients are on their way.</p>
+        <p className="mt-3 text-base font-bold text-primary">Payment approved!</p>
+        <p className="mt-1 text-sm text-[#625d52]">Setting up your delivery…</p>
       </div>
     );
   }

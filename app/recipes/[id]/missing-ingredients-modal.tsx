@@ -202,124 +202,181 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
       ? new Date(delivery.estimated_delivery_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       : "~45 min";
 
+    const STEPS = ["Placed", "Pickup", "On the way", "Delivered"];
+
     return (
       <div
         aria-modal="true"
         className="fixed inset-0 z-50 flex items-center justify-center bg-[#2d2a25]/50 p-4"
         role="dialog"
       >
-        <div className="flex w-full max-w-lg flex-col gap-5 rounded-3xl border border-[#eadfce] bg-white p-8 shadow-2xl shadow-[#2d2a25]/20">
+        <div className="flex w-full max-w-xl flex-col gap-0 overflow-hidden rounded-3xl border border-[#eadfce] bg-white shadow-2xl shadow-[#2d2a25]/20" style={{ maxHeight: "92vh" }}>
 
-          {/* Header */}
-          <div className="flex items-center gap-3">
-            <div className={`grid size-14 shrink-0 place-items-center rounded-full text-2xl ${cancelled ? "bg-red-50" : delivered ? "bg-[#f0faf2]" : "bg-[#fff6ee]"}`}>
-              {statusInfo.emoji}
+          {/* ── Top banner ── */}
+          <div className={`flex items-center gap-3 px-6 py-5 ${cancelled ? "bg-red-50" : delivered ? "bg-[#f0faf2]" : "bg-[#fff6ee]"}`}>
+            <span className="text-3xl">{statusInfo.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-[#2d2a25] text-base">{statusInfo.label}</p>
+              <p className="text-xs text-[#9a9287] truncate">Order {delivery.delivery_id}</p>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-[#2d2a25]">{statusInfo.label}</h2>
-              <p className="text-xs text-[#9a9287]">Delivery ID: {delivery.delivery_id}</p>
-            </div>
+            {/* Live pulse dot while in transit */}
+            {!cancelled && !delivered && (
+              <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                <span className="size-2 animate-pulse rounded-full bg-primary" />
+                Live
+              </span>
+            )}
           </div>
 
-          {/* Progress bar */}
-          {!cancelled && (
-            <div>
-              <div className="relative h-2 w-full overflow-hidden rounded-full bg-[#eadfce]">
-                <div
-                  className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all duration-700"
-                  style={{ width: `${statusInfo.progress}%` }}
-                />
-              </div>
-              <div className="mt-1.5 flex justify-between text-[10px] text-[#b5a99a]">
-                <span>Placed</span><span>Pickup</span><span>On the way</span><span>Delivered</span>
-              </div>
-            </div>
-          )}
+          <div className="flex flex-col gap-4 overflow-y-auto p-6">
 
-          {/* Dasher card */}
-          {delivery.dasher && (
-            <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-4">
-              <div className="flex items-center gap-3">
-                <div className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-xl">🛵</div>
-                <div className="flex-1">
-                  <p className="font-bold text-[#2d2a25]">{delivery.dasher.name}</p>
-                  {delivery.dasher.vehicle && <p className="text-xs text-[#625d52]">{delivery.dasher.vehicle}</p>}
-                </div>
-                {delivery.dasher.rating && (
-                  <span className="flex items-center gap-1 rounded-xl bg-[#fff6ee] px-2.5 py-1 text-sm font-bold text-primary">
-                    ⭐ {delivery.dasher.rating}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ETA / address */}
-          {!cancelled && (
-            <div className="flex items-center justify-between rounded-2xl bg-[#fff6ee] px-5 py-3">
+            {/* Progress bar + steps */}
+            {!cancelled && (
               <div>
-                <p className="text-xs text-[#625d52]">Estimated arrival</p>
-                <p className="text-base font-bold text-primary">{delivered ? "Delivered!" : eta}</p>
+                <div className="relative h-2 w-full overflow-hidden rounded-full bg-[#eadfce]">
+                  <div
+                    className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all duration-700"
+                    style={{ width: `${statusInfo.progress}%` }}
+                  />
+                </div>
+                <div className="mt-2 grid grid-cols-4 text-center">
+                  {STEPS.map((step, i) => {
+                    const stepPct = [10, 45, 70, 100][i];
+                    const active = statusInfo.progress >= stepPct;
+                    return (
+                      <span key={step} className={`text-[10px] font-bold ${active ? "text-primary" : "text-[#b5a99a]"}`}>
+                        {step}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="min-w-0 text-right">
-                <p className="text-xs text-[#625d52]">Delivering to</p>
-                <p className="max-w-[200px] truncate text-sm font-bold text-[#2d2a25]">{address}</p>
+            )}
+
+            {/* ETA + address row */}
+            {!cancelled && (
+              <div className="flex items-center justify-between rounded-2xl bg-[#fff6ee] px-4 py-3 gap-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#9a9287]">ETA</p>
+                  <p className="text-lg font-bold text-primary">{delivered ? "Delivered!" : eta}</p>
+                </div>
+                <div className="min-w-0 text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#9a9287]">Delivering to</p>
+                  <p className="max-w-[220px] truncate text-sm font-bold text-[#2d2a25]">{address}</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Cancellation + refund */}
-          {cancelled && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center">
-              <p className="font-bold text-red-600">Delivery was cancelled</p>
-              <p className="mt-1 text-sm text-red-500">
-                {refundState === "done"
-                  ? `✅ Refund of $${grandTotal.toFixed(2)} has been issued to your card.`
-                  : refundState === "processing"
-                  ? "Processing refund…"
-                  : refundState === "error"
-                  ? `Refund error: ${refundError}`
-                  : authGuid
-                  ? "Issuing refund automatically…"
-                  : `A refund of $${grandTotal.toFixed(2)} will be issued.`}
-              </p>
-              {refundState === "error" && (
-                <button
-                  className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
-                  onClick={handleRefund}
-                >
-                  Retry Refund
-                </button>
-              )}
-            </div>
-          )}
+            {/* Dasher card */}
+            {delivery.dasher ? (
+              <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-4">
+                <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-[#9a9287]">Your Dasher</p>
+                <div className="flex items-center gap-3">
+                  <div className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-2xl">🛵</div>
+                  <div className="flex-1">
+                    <p className="font-bold text-[#2d2a25]">{delivery.dasher.name}</p>
+                    {delivery.dasher.vehicle && <p className="text-xs text-[#625d52]">{delivery.dasher.vehicle}</p>}
+                  </div>
+                  {delivery.dasher.rating && (
+                    <span className="flex items-center gap-1 rounded-xl bg-[#fff6ee] px-2.5 py-1.5 text-sm font-bold text-primary">
+                      ⭐ {delivery.dasher.rating}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-[#eadfce] bg-[#faf8f5] p-4 text-center">
+                <p className="text-xs text-[#9a9287]">Dasher will be assigned shortly…</p>
+              </div>
+            )}
 
-          {/* Simulated notice */}
-          {delivery.simulated && (
-            <p className="text-center text-xs text-[#b5a99a]">
-              Demo mode — add <code className="rounded bg-[#f5ece0] px-1">DOORDASH_*</code> env vars for real dispatch
-            </p>
-          )}
-
-          {/* Track + Done */}
-          <div className="flex gap-3">
-            {delivery.tracking_url && !cancelled && (
+            {/* DoorDash live tracking link — prominent */}
+            {delivery.tracking_url && (
               <a
                 href={delivery.tracking_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-primary bg-white text-sm font-bold text-primary hover:bg-primary/5"
+                className="flex items-center gap-3 rounded-2xl border border-[#eadfce] bg-white px-4 py-3.5 transition hover:bg-[#fff6ee]"
               >
-                Track live →
+                <span className="text-2xl">📍</span>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-[#2d2a25]">Track live on DoorDash</p>
+                  <p className="text-xs text-[#9a9287] truncate">{delivery.tracking_url}</p>
+                </div>
+                <span className="shrink-0 text-sm font-bold text-primary">Open →</span>
               </a>
             )}
-            <button
-              className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-primary text-sm font-bold text-white hover:bg-primary/90"
-              onClick={onClose}
-            >
-              {cancelled ? "Close" : delivered ? "Done" : "Minimize"}
-            </button>
+
+            {/* Cancellation + refund */}
+            {cancelled && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center">
+                <p className="font-bold text-red-600">Delivery was cancelled</p>
+                <p className="mt-1 text-sm text-red-500">
+                  {refundState === "done"
+                    ? `✅ Refund of $${grandTotal.toFixed(2)} has been issued to your card.`
+                    : refundState === "processing"
+                    ? "Processing refund…"
+                    : refundState === "error"
+                    ? `Refund error: ${refundError}`
+                    : authGuid
+                    ? "Issuing refund automatically…"
+                    : `A refund of $${grandTotal.toFixed(2)} will be issued.`}
+                </p>
+                {refundState === "error" && (
+                  <button
+                    className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
+                    onClick={handleRefund}
+                  >Retry Refund</button>
+                )}
+              </div>
+            )}
+
+            {/* Items ordered */}
+            <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-4">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-[#9a9287]">Items ordered</p>
+              <div className="flex flex-wrap gap-1.5">
+                {products.map((p) => (
+                  <span key={p.name} className="rounded-full bg-white border border-[#eadfce] px-2.5 py-1 text-xs font-medium text-[#2d2a25]">
+                    {p.name}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-3 flex justify-between border-t border-[#eadfce] pt-2.5 text-sm">
+                <span className="text-[#625d52]">Total charged</span>
+                <span className="font-bold text-[#2d2a25]">${grandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {delivery.simulated && (
+              <p className="text-center text-xs text-[#b5a99a]">
+                Demo mode — add <code className="rounded bg-[#f5ece0] px-1">DOORDASH_*</code> env vars for real dispatch
+              </p>
+            )}
+
           </div>
+
+          {/* ── Footer ── */}
+          <div className="shrink-0 border-t border-[#eadfce] px-6 py-4">
+            <div className="flex gap-3">
+              {delivery.tracking_url && !cancelled && (
+                <a
+                  href={delivery.tracking_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-primary bg-white text-sm font-bold text-primary hover:bg-primary/5"
+                >
+                  Track live →
+              </a>
+                )}
+              <button
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-primary text-sm font-bold text-white hover:bg-primary/90"
+                onClick={onClose}
+              >
+                {cancelled ? "Close" : delivered ? "Done" : "Minimize"}
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
     );
