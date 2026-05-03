@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PantryOverview } from "../components/pantry-overview";
 import { RecipeCard, type RecipeCardProps } from "../components/recipe-card";
 import { RecipeCarousel } from "../components/recipe-carousel";
+import { RecipeSuggestions } from "../components/recipe-suggestions";
 
 const recipes: RecipeCardProps[] = [
   {
@@ -133,6 +134,8 @@ export default function DashboardPage() {
             ))}
           </RecipeCarousel>
         </div>
+
+        <RecipeSuggestions />
 
         <section className="mt-7 rounded-3xl border border-[#eadfce] bg-white/80 p-5 shadow-sm shadow-[#8c6b3f]/5">
           <div className="mb-5 flex items-center justify-between">

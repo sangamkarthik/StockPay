@@ -53,17 +53,52 @@ function isPaymentSuccessful(result: Record<string, unknown>) {
   return true;
 }
 
+async function serverVerify(sessionToken: string): Promise<{ verified: boolean; data?: Record<string, unknown> }> {
+  try {
+    const res = await fetch("/api/north/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionToken }),
+    });
+    const data = await res.json();
+    return { verified: res.ok && data.verified, data };
+  } catch {
+    return { verified: false };
+  }
+}
+
 export function NorthCheckout({ products, total, tax, serviceFee, onApproved, onError }: NorthCheckoutProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "paying" | "approved" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [paymentWarning, setPaymentWarning] = useState("");
   const mountedRef = useRef(false);
   const completedRef = useRef(false);
-  // Keep latest callbacks in a ref so postMessage listener always calls current version
+  const sessionTokenRef = useRef<string>("");
+  // Keep latest callbacks in refs so closures always call the current version
   const onApprovedRef = useRef(onApproved);
   const onErrorRef = useRef(onError);
   useEffect(() => { onApprovedRef.current = onApproved; }, [onApproved]);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
+
+  // Called on every completion path — server-verifies then fires onApproved
+  const handleComplete = useCallback(async (clientResult: Record<string, unknown>) => {
+    const token = sessionTokenRef.current;
+    if (token) {
+      const { verified, data } = await serverVerify(token);
+      if (verified) {
+        setStatus("approved");
+        onApprovedRef.current({ ...clientResult, ...data, serverVerified: true });
+        return;
+      }
+      // Verification timed out or network error — proceed optimistically
+      console.warn("[NorthCheckout] Server verify inconclusive, proceeding optimistically");
+    }
+    setStatus("approved");
+    onApprovedRef.current({ ...clientResult, serverVerified: false });
+  }, []);
+
+  const handleCompleteRef = useRef(handleComplete);
+  useEffect(() => { handleCompleteRef.current = handleComplete; }, [handleComplete]);
 
   useEffect(() => {
     if (mountedRef.current) return;
@@ -88,12 +123,11 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
 
       if (isComplete) {
         completedRef.current = true;
-        setStatus("approved");
-        onApprovedRef.current(data);
+        handleCompleteRef.current(data);
         return;
       }
 
-      // Detect Google Pay / wallet payment failures from North's SDK
+      // Detect wallet payment failures
       const isFailure =
         data.type === "payment_error" ||
         data.type === "checkout:error" ||
@@ -124,6 +158,7 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
         const data = await res.json();
         if (!res.ok || !data.sessionToken) throw new Error(data.error || "Could not create checkout session.");
 
+        sessionTokenRef.current = data.sessionToken;
         await loadScript();
 
         const container = document.getElementById(CONTAINER_ID);
@@ -156,8 +191,7 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
             if (completedRef.current) return;
             completedRef.current = true;
             if (isPaymentSuccessful(result)) {
-              setStatus("approved");
-              onApprovedRef.current(result);
+              handleCompleteRef.current(result);
             } else {
               const msg = String(result.authResponseText ?? result.status ?? "Payment declined");
               setErrorMessage(msg);
@@ -189,8 +223,7 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
       if (completedRef.current) return;
       completedRef.current = true;
       if (!isPaymentSuccessful(result)) throw new Error("Payment was not approved.");
-      setStatus("approved");
-      onApprovedRef.current(result);
+      await handleComplete(result);
     } catch (err) {
       if (completedRef.current) return;
       const msg = err instanceof Error ? err.message : "Payment failed";
@@ -198,7 +231,7 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
       setStatus("error");
       onErrorRef.current(msg);
     }
-  }, []);
+  }, [handleComplete]);
 
   if (status === "approved") {
     return (

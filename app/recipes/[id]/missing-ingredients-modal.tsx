@@ -33,6 +33,7 @@ type DeliveryResult = {
 
 type RefundState = "idle" | "processing" | "done" | "error";
 type ModalPhase = "checkout" | "confirmed";
+type CheckoutTab = "cart" | "details" | "payment";
 
 type MissingIngredientsModalProps = {
   ingredients: RecipeIngredient[];
@@ -49,6 +50,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
   const [authGuid, setAuthGuid] = useState("");
   const [refundState, setRefundState] = useState<RefundState>("idle");
   const [refundError, setRefundError] = useState("");
+  const [activeTab, setActiveTab] = useState<CheckoutTab>("cart");
 
   // Reset to fresh checkout state every time the modal is opened
   useEffect(() => {
@@ -61,6 +63,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
       setAuthGuid("");
       setRefundState("idle");
       setRefundError("");
+      setActiveTab("cart");
     }
   }, [isOpen]);
 
@@ -132,10 +135,10 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, delivery]);
 
-  // Auto-refund when DoorDash cancels
+  // Auto-reverse when DoorDash cancels
   useEffect(() => {
     if (deliveryStatus === "delivery_cancelled" && refundState === "idle" && authGuid) {
-      handleRefund();
+      handleCancellation();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deliveryStatus]);
@@ -199,16 +202,38 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address, grandTotal]);
 
-  const handleRefund = useCallback(async () => {
+  const handleCancellation = useCallback(async () => {
     setRefundState("processing");
+    const headers = { "Content-Type": "application/json" };
+
+    // Step 1: void (pre-settlement)
+    if (authGuid) {
+      try {
+        const voidRes = await fetch("/api/north/void", {
+          method: "POST", headers,
+          body: JSON.stringify({ authGuid }),
+        });
+        if (voidRes.ok) { setRefundState("done"); return; }
+      } catch { /* fall through */ }
+
+      // Step 2: reversal (post-settlement)
+      try {
+        const revRes = await fetch("/api/north/reversal", {
+          method: "POST", headers,
+          body: JSON.stringify({ authGuid }),
+        });
+        if (revRes.ok) { setRefundState("done"); return; }
+      } catch { /* fall through */ }
+    }
+
+    // Step 3: refund fallback
     try {
-      const res = await fetch("/api/north/refund", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const refundRes = await fetch("/api/north/refund", {
+        method: "POST", headers,
         body: JSON.stringify({ authGuid, amount: grandTotal }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Refund failed");
+      const data = await refundRes.json();
+      if (!refundRes.ok) throw new Error(data.error ?? "Refund failed");
       setRefundState("done");
     } catch (err) {
       setRefundError(err instanceof Error ? err.message : "Refund failed");
@@ -358,7 +383,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
                 {refundState === "error" && (
                   <button
                     className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
-                    onClick={handleRefund}
+                    onClick={handleCancellation}
                   >Retry Refund</button>
                 )}
               </div>
@@ -443,11 +468,25 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
           >×</button>
         </div>
 
-        {/* 3-column body */}
-        <div className="grid min-h-0 flex-1 overflow-hidden" style={{ gridTemplateColumns: "300px 340px 1fr" }}>
+        {/* Mobile tab bar — hidden on md+ */}
+        <div className="flex shrink-0 border-b border-[#eadfce] md:hidden">
+          {(["cart", "details", "payment"] as CheckoutTab[]).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-3 text-xs font-bold capitalize transition ${activeTab === tab ? "border-b-2 border-primary text-primary" : "text-[#9a9287]"}`}
+            >
+              {tab === "cart" ? "Cart" : tab === "details" ? "Details" : "Payment"}
+            </button>
+          ))}
+        </div>
+
+        {/* 3-column body — flex-col on mobile (tabs control visibility), grid on md+ */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:grid" style={{ gridTemplateColumns: "300px 340px 1fr" }}>
 
           {/* ── Left: cart ─────────────────────────── */}
-          <div className="flex flex-col overflow-y-auto border-r border-[#eadfce] p-5">
+          <div className={`flex flex-col overflow-y-auto border-r border-[#eadfce] p-5 ${activeTab !== "cart" ? "hidden md:flex" : ""}`}>
             <p className="mb-3 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Your cart</p>
             <ul className="flex-1 divide-y divide-[#f5ece0]">
               {products.map((p) => (
@@ -467,7 +506,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
           </div>
 
           {/* ── Middle: order details + address ──────── */}
-          <div className="flex flex-col overflow-y-auto border-r border-[#eadfce] p-5">
+          <div className={`flex flex-col overflow-y-auto border-r border-[#eadfce] p-5 ${activeTab !== "details" ? "hidden md:flex" : ""}`}>
             <p className="mb-4 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Order details</p>
 
             <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-4">
@@ -536,7 +575,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
           </div>
 
           {/* ── Right: North checkout ─────────────────── */}
-          <div className="flex flex-col p-5">
+          <div className={`flex flex-col p-5 ${activeTab !== "payment" ? "hidden md:flex" : ""}`}>
             <p className="mb-4 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Secure payment</p>
             <div className="flex min-h-0 flex-1 flex-col">
               <NorthCheckout

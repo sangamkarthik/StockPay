@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useIngredients } from "../context/ingredients-context";
 
 const SCAN_SOURCES = [
@@ -28,11 +28,19 @@ const SCAN_SOURCES = [
 const ALL_DETECTED = SCAN_SOURCES.flatMap((s) => s.ingredients);
 
 type ScanStatus = "idle" | "scanning" | "done";
+type CameraStatus = "idle" | "uploading" | "done" | "error";
 
 export function PantryScan() {
   const [status, setStatus] = useState<ScanStatus>("idle");
   const [activeScan, setActiveScan] = useState(-1);
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>("idle");
+  const [cameraIngredients, setCameraIngredients] = useState<string[]>([]);
+  const [cameraError, setCameraError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { setIngredients, ingredients } = useIngredients();
+  // Keep a ref so async callbacks always see the latest ingredients list
+  const ingredientsRef = useRef(ingredients);
+  ingredientsRef.current = ingredients;
 
   const runScan = useCallback(() => {
     setStatus("scanning");
@@ -47,16 +55,39 @@ export function PantryScan() {
         clearInterval(interval);
         setActiveScan(-1);
         setStatus("done");
-        const merged = Array.from(new Set([...ingredients, ...ALL_DETECTED]));
+        const merged = Array.from(new Set([...ingredientsRef.current, ...ALL_DETECTED]));
         setIngredients(merged);
       }
     }, 1000);
-  }, [ingredients, setIngredients]);
+  }, [setIngredients]);
 
   const reset = useCallback(() => {
     setStatus("idle");
     setActiveScan(-1);
+    setCameraStatus("idle");
+    setCameraIngredients([]);
+    setCameraError("");
   }, []);
+
+  const handleFileUpload = useCallback(async (file: File) => {
+    setCameraStatus("uploading");
+    setCameraError("");
+    const formData = new FormData();
+    formData.append("image", file);
+    try {
+      const res = await fetch("/api/pantry/scan", { method: "POST", body: formData });
+      const data = await res.json() as { ingredients?: string[]; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Scan failed");
+      const detected: string[] = Array.isArray(data.ingredients) ? data.ingredients : [];
+      setCameraIngredients(detected);
+      setCameraStatus("done");
+      const merged = Array.from(new Set([...ingredientsRef.current, ...detected]));
+      setIngredients(merged);
+    } catch (err) {
+      setCameraError(err instanceof Error ? err.message : "Scan failed");
+      setCameraStatus("error");
+    }
+  }, [setIngredients]);
 
   return (
     <article className="relative overflow-hidden rounded-3xl border border-[#eadfce] bg-white/80 p-6 shadow-sm shadow-[#8c6b3f]/5">
@@ -149,6 +180,67 @@ export function PantryScan() {
         )}
       </div>
 
+      {/* ── Take a photo with AI Vision ─────────────────────────── */}
+      <div className="mt-5 border-t border-[#eadfce] pt-5">
+        <p className="mb-3 text-xs font-bold uppercase tracking-wide text-[#9a9287]">
+          Or scan with your camera
+        </p>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void handleFileUpload(file);
+            e.target.value = "";
+          }}
+        />
+
+        <button
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#ddd3c5] bg-white/70 px-4 text-sm font-bold text-[#2d2a25] transition hover:bg-white disabled:opacity-60"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={cameraStatus === "uploading"}
+          type="button"
+        >
+          {cameraStatus === "uploading" ? (
+            <>
+              <span className="size-4 animate-spin rounded-full border-2 border-[#ddd3c5] border-t-primary" />
+              Scanning photo…
+            </>
+          ) : (
+            <>
+              <CameraIcon />
+              Take a Photo
+            </>
+          )}
+        </button>
+
+        {cameraStatus === "done" && cameraIngredients.length > 0 && (
+          <div className="mt-3 rounded-2xl border border-[#d4edda] bg-[#f0faf2] px-4 py-3">
+            <p className="text-sm font-bold text-primary">
+              {cameraIngredients.length} ingredients detected by AI
+            </p>
+            <p className="mt-1 flex flex-wrap gap-1">
+              {cameraIngredients.map((name) => (
+                <span key={name} className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                  {name}
+                </span>
+              ))}
+            </p>
+          </div>
+        )}
+
+        {cameraStatus === "done" && cameraIngredients.length === 0 && (
+          <p className="mt-2 text-xs text-[#9a9287]">No ingredients detected — try a clearer photo.</p>
+        )}
+
+        {cameraStatus === "error" && (
+          <p className="mt-2 text-xs text-[#df6040]">{cameraError}</p>
+        )}
+      </div>
+
       <style>{`
         @keyframes scan {
           0% { top: 0%; }
@@ -178,6 +270,15 @@ function ScanSparkleIcon() {
   return (
     <svg aria-hidden="true" className="size-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24">
       <path d="m12 3 1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z" />
+    </svg>
+  );
+}
+
+function CameraIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24">
+      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" />
+      <circle cx="12" cy="13" r="3" />
     </svg>
   );
 }
