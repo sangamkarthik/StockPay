@@ -300,7 +300,9 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
               <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-4">
                 <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-[#9a9287]">Your Dasher</p>
                 <div className="flex items-center gap-3">
-                  <div className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-2xl">🛵</div>
+                  <div className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-2xl">
+                    {dasher.vehicle && /bike|scooter|motor|bicycle/i.test(dasher.vehicle) ? "🛵" : "🚗"}
+                  </div>
                   <div className="flex-1">
                     <p className="font-bold text-[#2d2a25]">{dasher.name}</p>
                     {dasher.vehicle && <p className="text-xs text-[#625d52]">{dasher.vehicle}</p>}
