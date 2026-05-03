@@ -117,72 +117,78 @@ export function RecipeSuggestions() {
   );
 }
 
+function toSlug(title: string) {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
 function RecipeCard({ recipe }: { recipe: RecipeSuggestion }) {
+  const href = `/recipes/mealdb/${recipe.id}-${toSlug(recipe.title)}`;
+
   return (
     <article className="group overflow-hidden rounded-2xl border border-[#eadfce] bg-white transition hover:shadow-md hover:shadow-[#8c6b3f]/10">
-      <div className="relative aspect-video overflow-hidden">
-        <Image
-          src={recipe.image}
-          alt={recipe.title}
-          fill
-          className="object-cover transition group-hover:scale-105"
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          unoptimized
-        />
-        <div className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-xs font-bold text-primary shadow-sm">
-          {recipe.matchScore}% match
-        </div>
-      </div>
-
-      <div className="p-4">
-        <p className="line-clamp-1 font-bold text-[#2d2a25]">{recipe.title}</p>
-        <div className="mt-1 flex items-center gap-2 text-xs text-[#9a9287]">
-          <span>{recipe.category}</span>
-          {recipe.area && (
-            <>
-              <span>·</span>
-              <span>{recipe.area}</span>
-            </>
-          )}
+      <Link href={href} className="block">
+        <div className="relative aspect-video overflow-hidden">
+          <Image
+            src={recipe.image}
+            alt={recipe.title}
+            fill
+            className="object-cover transition group-hover:scale-105"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            unoptimized
+          />
+          <div className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-xs font-bold text-primary shadow-sm">
+            {recipe.matchScore}% match
+          </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-1">
-          {recipe.ingredients.slice(0, 4).map((ing) => (
-            <span
-              key={ing}
-              className="rounded-full bg-[#f5ece0] px-2 py-0.5 text-[10px] font-medium text-[#625d52]"
-            >
-              {ing}
-            </span>
-          ))}
-          {recipe.ingredients.length > 4 && (
-            <span className="rounded-full bg-[#f5ece0] px-2 py-0.5 text-[10px] font-medium text-[#9a9287]">
-              +{recipe.ingredients.length - 4} more
-            </span>
-          )}
-        </div>
+        <div className="p-4">
+          <p className="line-clamp-1 font-bold text-[#2d2a25] group-hover:text-primary transition">{recipe.title}</p>
+          <div className="mt-1 flex items-center gap-2 text-xs text-[#9a9287]">
+            <span>{recipe.category}</span>
+            {recipe.area && (
+              <>
+                <span>·</span>
+                <span>{recipe.area}</span>
+              </>
+            )}
+          </div>
 
-        <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex flex-wrap gap-1">
+            {recipe.ingredients.slice(0, 4).map((ing) => (
+              <span
+                key={ing}
+                className="rounded-full bg-[#f5ece0] px-2 py-0.5 text-[10px] font-medium text-[#625d52]"
+              >
+                {ing}
+              </span>
+            ))}
+            {recipe.ingredients.length > 4 && (
+              <span className="rounded-full bg-[#f5ece0] px-2 py-0.5 text-[10px] font-medium text-[#9a9287]">
+                +{recipe.ingredients.length - 4} more
+              </span>
+            )}
+          </div>
+        </div>
+      </Link>
+
+      <div className="flex gap-2 px-4 pb-4">
+        <Link
+          href={href}
+          className="inline-flex h-9 flex-1 items-center justify-center rounded-xl bg-primary text-xs font-bold text-white transition hover:bg-primary/90"
+        >
+          View Recipe
+        </Link>
+        {recipe.youtubeUrl && (
           <a
-            href={`https://www.themealdb.com/meal/${recipe.id}`}
+            href={recipe.youtubeUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-9 flex-1 items-center justify-center rounded-xl bg-primary text-xs font-bold text-white transition hover:bg-primary/90"
+            className="inline-flex h-9 items-center justify-center rounded-xl border border-[#eadfce] px-3 text-xs font-bold text-[#625d52] transition hover:bg-[#fff6ee]"
+            aria-label="Watch on YouTube"
           >
-            View Recipe
+            ▶
           </a>
-          {recipe.youtubeUrl && (
-            <a
-              href={recipe.youtubeUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-9 items-center justify-center rounded-xl border border-[#eadfce] px-3 text-xs font-bold text-[#625d52] transition hover:bg-[#fff6ee]"
-              aria-label="Watch on YouTube"
-            >
-              ▶
-            </a>
-          )}
-        </div>
+        )}
       </div>
     </article>
   );
