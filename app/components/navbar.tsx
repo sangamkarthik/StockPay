@@ -3,9 +3,10 @@ import { Button } from "./button";
 
 const navLinks = [
   { label: "Features", href: "/#how-it-works" },
+  { label: "Dashboard", href: "/dashboard" },
   { label: "Pantry", href: "/pantry" },
   { label: "Recipes", href: "/dashboard" },
-  { label: "Community", href: "/dashboard" },
+  { label: "Community", href: "#" },
 ];
 
 export function Navbar() {
