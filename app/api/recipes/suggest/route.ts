@@ -26,7 +26,7 @@ function extractIngredients(meal: MealDetail): string[] {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const raw = searchParams.get("ingredients") ?? "";
-  const ingredients = raw.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 6);
+  const ingredients = raw.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 10);
 
   if (!ingredients.length) {
     return NextResponse.json({ error: "Provide at least one ingredient." }, { status: 400 });

@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
         hostname: "images.unsplash.com",
         protocol: "https",
       },
+      {
+        hostname: "www.themealdb.com",
+        protocol: "https",
+      },
     ],
   },
 };

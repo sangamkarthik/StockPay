@@ -34,7 +34,7 @@ export function RecipeSuggestions() {
       return;
     }
 
-    const key = ingredients.slice(0, 6).join(",");
+    const key = ingredients.slice(0, 10).join(",");
     if (key === lastFetchRef.current) return;
 
     fetchTimerRef.current = setTimeout(async () => {

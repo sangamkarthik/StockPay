@@ -80,10 +80,7 @@ export default async function MealDbRecipePage({ params }: PageProps) {
   const steps = parseSteps(meal.strInstructions);
   const tags = meal.strTags ? meal.strTags.split(",").map(t => t.trim()).filter(Boolean) : [];
 
-  const images = [
-    { src: meal.strMealThumb, alt: meal.strMeal },
-    { src: `${meal.strMealThumb}/preview`, alt: `${meal.strMeal} preview` },
-  ];
+  const images = [{ src: meal.strMealThumb, alt: meal.strMeal }];
 
   const summaryStats = [
     { label: "Category", value: meal.strCategory, icon: <TagIcon /> },

@@ -8,12 +8,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { PantryRestockModal } from "../components/pantry-restock-modal";
 import { PantryScan } from "../components/pantry-scan";
 import { useIngredients } from "../context/ingredients-context";
 import { IngredientsTable } from "./ingredients-table";
 
 export default function PantryPage() {
   const { addIngredient, ingredients, removeIngredient } = useIngredients();
+  const [restockOpen, setRestockOpen] = useState(false);
   const [ingredientSuggestions, setIngredientSuggestions] = useState<string[]>(
     [],
   );
@@ -104,6 +106,25 @@ export default function PantryPage() {
           </p>
         </section>
 
+        {/* Restock banner */}
+        <div className="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-[#eadfce] bg-white/80 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🛒</span>
+            <div>
+              <p className="text-sm font-bold text-[#2d2a25]">Running low on staples?</p>
+              <p className="text-xs text-[#625d52]">Order olive oil, garlic, eggs and more — no service fee.</p>
+            </div>
+          </div>
+          <button
+            className="shrink-0 inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-white shadow-sm transition hover:bg-primary/90"
+            onClick={() => setRestockOpen(true)}
+            type="button"
+          >
+            <RestockIcon />
+            Restock Pantry
+          </button>
+        </div>
+
         <section className="mt-6 grid gap-6 lg:grid-cols-[0.96fr_1fr]">
           <PantryScan />
 
@@ -185,6 +206,8 @@ export default function PantryPage() {
           onRemoveIngredient={removeIngredient}
         />
       </main>
+
+      <PantryRestockModal isOpen={restockOpen} onClose={() => setRestockOpen(false)} />
     </div>
   );
 }
@@ -317,6 +340,19 @@ function SparkleIcon() {
     <IconSvg className="size-4">
       <path d="m12 3 1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z" />
       <path d="m19 15 .9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z" />
+    </IconSvg>
+  );
+}
+
+function RestockIcon() {
+  return (
+    <IconSvg className="size-4">
+      <path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14" />
+      <path d="M16.5 9.4 7.55 4.24" />
+      <path d="M3.29 7 12 12l8.71-5" />
+      <path d="M12 22V12" />
+      <path d="M19 16v6" />
+      <path d="M22 19l-3 3-3-3" />
     </IconSvg>
   );
 }

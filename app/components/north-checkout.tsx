@@ -7,6 +7,7 @@ type NorthCheckoutProps = {
   total: number;
   tax: number;
   serviceFee: number;
+  sessionEndpoint?: string;
   onApproved: (result: Record<string, unknown>) => void;
   onError: (message: string) => void;
 };
@@ -67,7 +68,7 @@ async function serverVerify(sessionToken: string): Promise<{ verified: boolean; 
   }
 }
 
-export function NorthCheckout({ products, total, tax, serviceFee, onApproved, onError }: NorthCheckoutProps) {
+export function NorthCheckout({ products, total, tax, serviceFee, sessionEndpoint = "/api/north/session", onApproved, onError }: NorthCheckoutProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "paying" | "approved" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [paymentWarning, setPaymentWarning] = useState("");
@@ -150,7 +151,7 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
 
     async function init() {
       try {
-        const res = await fetch("/api/north/session", {
+        const res = await fetch(sessionEndpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ products, tax, serviceFee, total }),
