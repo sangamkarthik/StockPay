@@ -8,12 +8,12 @@ function roundMoney(value: number) {
 
 type Product = { name: string; price: number; quantity: number };
 
-// Restock session: same checkoutId + privateKey, separate profileId, no service fee.
-// Env vars: NORTH_PRIVATE_API_KEY, NORTH_CHECKOUT_ID, NORTH_RESTOCK_PROFILE_ID
+// Restock session: no service fee. Uses NORTH_RESTOCK_PROFILE_ID if configured,
+// otherwise falls back to NORTH_PROFILE_ID — serviceFee:0 is the differentiator, not the profile.
 export async function POST(request: Request) {
   const privateKey = process.env.NORTH_PRIVATE_API_KEY;
   const checkoutId = process.env.NORTH_CHECKOUT_ID;
-  const profileId = process.env.NORTH_RESTOCK_PROFILE_ID;
+  const profileId = process.env.NORTH_RESTOCK_PROFILE_ID ?? process.env.NORTH_PROFILE_ID;
 
   if (!privateKey || !checkoutId || !profileId) {
     return NextResponse.json({ error: "Restock checkout is not configured." }, { status: 500 });
@@ -67,8 +67,10 @@ export async function POST(request: Request) {
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      const detail = payload.message || payload.error || payload.title || JSON.stringify(payload);
+      console.error("[restock-session] North error", response.status, detail);
       return NextResponse.json(
-        { error: payload.message || "Failed to create restock session." },
+        { error: detail || "Failed to create restock session." },
         { status: response.status },
       );
     }
@@ -85,6 +87,7 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Network error";
+    console.error("[restock-session] fetch threw:", message);
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
