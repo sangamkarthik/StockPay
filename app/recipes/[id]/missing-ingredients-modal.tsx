@@ -48,6 +48,18 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
   const [refundState, setRefundState] = useState<RefundState>("idle");
   const [refundError, setRefundError] = useState("");
 
+  // Reset to fresh checkout state every time the modal is opened
+  useEffect(() => {
+    if (isOpen) {
+      setPhase("checkout");
+      setDelivery(null);
+      setDeliveryStatus("created");
+      setAuthGuid("");
+      setRefundState("idle");
+      setRefundError("");
+    }
+  }, [isOpen]);
+
   const [address, setAddress] = useState("350 5th Ave, New York, NY 10118");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSugg, setShowSugg] = useState(false);

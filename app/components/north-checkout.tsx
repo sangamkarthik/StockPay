@@ -16,6 +16,7 @@ declare global {
     checkout?: {
       mount: (sessionToken: string, containerId: string, opts: { amount: number; tax: number; serviceFee: number }) => Promise<void>;
       submit: () => Promise<Record<string, unknown>>;
+      onPaymentComplete?: (cb: (result: Record<string, unknown>) => void) => void;
     };
   }
 }
@@ -58,6 +59,8 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
   const [status, setStatus] = useState<"loading" | "ready" | "paying" | "approved" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const mountedRef = useRef(false);
+  // Prevents double-firing when both onPaymentComplete and submit() resolve
+  const completedRef = useRef(false);
 
   useEffect(() => {
     if (mountedRef.current) return;
@@ -79,8 +82,23 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
         const container = document.getElementById(CONTAINER_ID);
         if (container) container.innerHTML = "";
 
-        // Set up observer BEFORE mount so iframes created during mount are caught.
-        // Safari 17+ requires allow="payment" on any iframe for Apple Pay.
+        // Wire up onPaymentComplete BEFORE mount so Apple Pay / Google Pay
+        // wallet completions (which bypass submit()) are caught.
+        window.checkout!.onPaymentComplete?.((result) => {
+          if (completedRef.current) return;
+          completedRef.current = true;
+          if (isPaymentSuccessful(result)) {
+            setStatus("approved");
+            onApproved(result);
+          } else {
+            const msg = String(result.authResponseText ?? result.status ?? "Payment declined");
+            setErrorMessage(msg);
+            setStatus("error");
+            onError(msg);
+          }
+        });
+
+        // Set up allow="payment" observer before mount — Safari 17+ requires it.
         const applyPaymentAllow = (root: Element) => {
           root.querySelectorAll("iframe").forEach((f) => {
             if (!f.getAttribute("allow")?.includes("payment")) {
@@ -102,7 +120,6 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
           serviceFee: data.serviceFee,
         });
 
-        // Patch any iframes that already exist after mount resolves.
         if (container) applyPaymentAllow(container);
 
         setStatus("ready");
@@ -122,10 +139,14 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
     try {
       setStatus("paying");
       const result = await window.checkout!.submit();
+      // onPaymentComplete may have already handled this
+      if (completedRef.current) return;
+      completedRef.current = true;
       if (!isPaymentSuccessful(result)) throw new Error("Payment was not approved.");
       setStatus("approved");
       onApproved(result);
     } catch (err) {
+      if (completedRef.current) return;
       const msg = err instanceof Error ? err.message : "Payment failed";
       setErrorMessage(msg);
       setStatus("error");
