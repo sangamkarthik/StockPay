@@ -585,7 +585,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
                 products={products}
                 total={grandTotal}
                 tax={taxAmount}
-                serviceFee={SERVICE_FEE}
+                serviceFee={SERVICE_FEE + DELIVERY_FEE}
                 onApproved={handleApproved}
                 onError={() => {}}
               />
