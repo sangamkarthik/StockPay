@@ -67,3 +67,16 @@ enum RecipeIngredientStatus {
   HAVE_SOME
   MISSING
 }
+
+model SavedRecipe {
+  id        Int      @id @default(autoincrement())
+  mealDbId  String   @unique @map("meal_db_id") @db.VarChar(50)
+  title     String   @db.VarChar(255)
+  slug      String   @db.VarChar(300)
+  thumb     String?  @db.VarChar(500)
+  category  String?  @db.VarChar(100)
+  area      String?  @db.VarChar(100)
+  savedAt   DateTime @default(now()) @map("saved_at")
+
+  @@map("saved_recipes")
+}

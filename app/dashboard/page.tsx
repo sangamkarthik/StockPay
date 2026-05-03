@@ -4,6 +4,7 @@ import { PantryOverview } from "../components/pantry-overview";
 import { RecipeCard, type RecipeCardProps } from "../components/recipe-card";
 import { RecipeCarousel } from "../components/recipe-carousel";
 import { RecipeSuggestions } from "../components/recipe-suggestions";
+import { SavedRecipesSection } from "../components/saved-recipes-section";
 
 const recipes: RecipeCardProps[] = [
   {
@@ -134,6 +135,7 @@ export default function DashboardPage() {
           </RecipeCarousel>
         </div>
 
+        <SavedRecipesSection />
         <RecipeSuggestions />
 
         <section className="mt-7 rounded-3xl border border-[#eadfce] bg-white/80 p-5 shadow-sm shadow-[#8c6b3f]/5">

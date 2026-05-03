@@ -3,8 +3,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { SaveRecipeButton } from "../../../components/save-recipe-button";
 import { RecipeImageCarousel } from "../../../components/recipe-image-carousel";
 import { RecipeIngredientsPanel, type RecipeIngredient } from "../../[id]/recipe-ingredients-panel";
+import { prisma } from "../../../../lib/db/prisma";
 
 type PageProps = { params: Promise<{ slug: string }> };
 
@@ -76,6 +78,10 @@ export default async function MealDbRecipePage({ params }: PageProps) {
   const meal = await getMeal(slug);
   if (!meal) notFound();
 
+  const mealDbId = meal.idMeal;
+  const existing = await prisma.savedRecipe.findUnique({ where: { mealDbId } }).catch(() => null);
+  const isSaved = existing !== null;
+
   const ingredients = extractIngredients(meal);
   const steps = parseSteps(meal.strInstructions);
   const tags = meal.strTags ? meal.strTags.split(",").map(t => t.trim()).filter(Boolean) : [];
@@ -134,6 +140,15 @@ export default async function MealDbRecipePage({ params }: PageProps) {
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
+                <SaveRecipeButton
+                  mealDbId={mealDbId}
+                  title={meal.strMeal}
+                  slug={slug}
+                  thumb={meal.strMealThumb}
+                  category={meal.strCategory}
+                  area={meal.strArea}
+                  initialSaved={isSaved}
+                />
                 {meal.strYoutube && (
                   <a
                     href={meal.strYoutube}
