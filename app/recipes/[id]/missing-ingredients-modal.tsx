@@ -44,9 +44,12 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
   const [phase, setPhase] = useState<ModalPhase>("checkout");
   const [delivery, setDelivery] = useState<DeliveryResult | null>(null);
   const [deliveryStatus, setDeliveryStatus] = useState("created");
+  const [liveDasher, setLiveDasher] = useState<DeliveryResult["dasher"]>(null);
+  const [liveTrackingUrl, setLiveTrackingUrl] = useState<string | null>(null);
   const [authGuid, setAuthGuid] = useState("");
   const [refundState, setRefundState] = useState<RefundState>("idle");
   const [refundError, setRefundError] = useState("");
+  const [simulating, setSimulating] = useState(false);
 
   // Reset to fresh checkout state every time the modal is opened
   useEffect(() => {
@@ -54,9 +57,12 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
       setPhase("checkout");
       setDelivery(null);
       setDeliveryStatus("created");
+      setLiveDasher(null);
+      setLiveTrackingUrl(null);
       setAuthGuid("");
       setRefundState("idle");
       setRefundError("");
+      setSimulating(false);
     }
   }, [isOpen]);
 
@@ -87,7 +93,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  // Poll DoorDash delivery status while confirmed
+  // Poll DoorDash delivery status while confirmed — updates status, dasher, tracking URL
   useEffect(() => {
     if (phase !== "confirmed" || !delivery) return;
     const poll = async () => {
@@ -95,6 +101,8 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
         const res = await fetch(`/api/doorstep/status?id=${delivery.delivery_id}`);
         const data = await res.json();
         if (data.status) setDeliveryStatus(data.status);
+        if (data.dasher) setLiveDasher(data.dasher);
+        if (data.tracking_url) setLiveTrackingUrl(data.tracking_url);
       } catch { /* ignore */ }
     };
     poll();
@@ -191,6 +199,19 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authGuid, grandTotal]);
 
+  const handleSimulate = useCallback(async () => {
+    if (!delivery || simulating) return;
+    setSimulating(true);
+    try {
+      const res = await fetch(`/api/doorstep/simulate?id=${delivery.delivery_id}`, { method: "POST" });
+      const data = await res.json();
+      if (data.status) setDeliveryStatus(data.status);
+      if (data.dasher) setLiveDasher(data.dasher);
+    } catch { /* ignore */ }
+    finally { setSimulating(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [delivery, simulating]);
+
   if (!isOpen) return null;
 
   // ── Confirmation / tracking screen ─────────────────────────────────────────
@@ -201,6 +222,8 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
     const eta = delivery.estimated_delivery_time
       ? new Date(delivery.estimated_delivery_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       : "~45 min";
+    const dasher = liveDasher ?? delivery.dasher;
+    const trackingUrl = liveTrackingUrl ?? delivery.tracking_url;
 
     const STEPS = ["Placed", "Pickup", "On the way", "Delivered"];
 
@@ -268,40 +291,52 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
             )}
 
             {/* Dasher card */}
-            {delivery.dasher ? (
+            {dasher ? (
               <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-4">
                 <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-[#9a9287]">Your Dasher</p>
                 <div className="flex items-center gap-3">
                   <div className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-2xl">🛵</div>
                   <div className="flex-1">
-                    <p className="font-bold text-[#2d2a25]">{delivery.dasher.name}</p>
-                    {delivery.dasher.vehicle && <p className="text-xs text-[#625d52]">{delivery.dasher.vehicle}</p>}
+                    <p className="font-bold text-[#2d2a25]">{dasher.name}</p>
+                    {dasher.vehicle && <p className="text-xs text-[#625d52]">{dasher.vehicle}</p>}
                   </div>
-                  {delivery.dasher.rating && (
+                  {dasher.rating && (
                     <span className="flex items-center gap-1 rounded-xl bg-[#fff6ee] px-2.5 py-1.5 text-sm font-bold text-primary">
-                      ⭐ {delivery.dasher.rating}
+                      ⭐ {dasher.rating}
                     </span>
                   )}
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-dashed border-[#eadfce] bg-[#faf8f5] p-4 text-center">
-                <p className="text-xs text-[#9a9287]">Dasher will be assigned shortly…</p>
+              <div className="flex items-center justify-between rounded-2xl border border-dashed border-[#eadfce] bg-[#faf8f5] px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="size-4 animate-spin rounded-full border-2 border-[#eadfce] border-t-primary" />
+                  <p className="text-xs text-[#9a9287]">Waiting for dasher assignment…</p>
+                </div>
+                <button
+                  onClick={handleSimulate}
+                  disabled={simulating}
+                  className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20 disabled:opacity-50"
+                >
+                  {simulating ? "…" : "▶ Next step"}
+                </button>
               </div>
             )}
 
-            {/* DoorDash live tracking link — prominent */}
-            {delivery.tracking_url && (
+            {/* DoorDash live tracking link */}
+            {trackingUrl && (
               <a
-                href={delivery.tracking_url}
+                href={trackingUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 rounded-2xl border border-[#eadfce] bg-white px-4 py-3.5 transition hover:bg-[#fff6ee]"
               >
                 <span className="text-2xl">📍</span>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-[#2d2a25]">Track live on DoorDash</p>
-                  <p className="text-xs text-[#9a9287] truncate">{delivery.tracking_url}</p>
+                  <p className="text-xs text-[#9a9287] mt-0.5">
+                    Real-time map • dasher location • ETA updates
+                  </p>
                 </div>
                 <span className="shrink-0 text-sm font-bold text-primary">Open →</span>
               </a>
