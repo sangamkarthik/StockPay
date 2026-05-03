@@ -56,6 +56,7 @@ function isPaymentSuccessful(result: Record<string, unknown>) {
 export function NorthCheckout({ products, total, tax, serviceFee, onApproved, onError }: NorthCheckoutProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "paying" | "approved" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
+  const [paymentWarning, setPaymentWarning] = useState("");
   const mountedRef = useRef(false);
   const completedRef = useRef(false);
   // Keep latest callbacks in a ref so postMessage listener always calls current version
@@ -89,6 +90,26 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
         completedRef.current = true;
         setStatus("approved");
         onApprovedRef.current(data);
+        return;
+      }
+
+      // Detect Google Pay / wallet payment failures from North's SDK
+      const isFailure =
+        data.type === "payment_error" ||
+        data.type === "checkout:error" ||
+        data.event === "error" ||
+        data.success === false ||
+        (typeof data.error === "string" && data.error.length > 0);
+
+      if (isFailure) {
+        const msg = String(data.error ?? data.message ?? data.type ?? "");
+        const isGooglePay = msg.toLowerCase().includes("google") ||
+          (typeof data.paymentMethod === "string" && data.paymentMethod.toLowerCase().includes("google"));
+        setPaymentWarning(
+          isGooglePay
+            ? "Google Pay isn't available in test mode. Please pay with a card or Apple Pay instead."
+            : "Payment failed. Please try a different method.",
+        );
       }
     }
     window.addEventListener("message", handleMessage);
@@ -199,6 +220,19 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
 
   return (
     <div className="flex flex-1 flex-col gap-4">
+      {paymentWarning && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+          <span className="mt-0.5 shrink-0">⚠️</span>
+          <span className="flex-1">{paymentWarning}</span>
+          <button
+            className="shrink-0 text-amber-500 hover:text-amber-700"
+            onClick={() => setPaymentWarning("")}
+            type="button"
+            aria-label="Dismiss"
+          >✕</button>
+        </div>
+      )}
+
       {status === "loading" && (
         <div className="flex flex-1 items-center justify-center">
           <div className="flex items-center gap-2 text-sm text-[#625d52]">
