@@ -81,7 +81,9 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
         data.type === "checkout:complete" ||
         data.event === "approved" ||
         data.paymentStatus === "approved" ||
-        (data.authResponseText && isPaymentSuccessful(data));
+        (data.authResponseText && isPaymentSuccessful(data)) ||
+        // Google Pay via North returns {success: true, data: {...}}
+        (data.success === true && data.data != null && typeof data.data === "object");
 
       if (isComplete) {
         completedRef.current = true;
