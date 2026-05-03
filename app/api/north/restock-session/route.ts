@@ -8,12 +8,11 @@ function roundMoney(value: number) {
 
 type Product = { name: string; price: number; quantity: number };
 
-// Restock session: no service fee. Uses NORTH_RESTOCK_PROFILE_ID if configured,
-// otherwise falls back to NORTH_PROFILE_ID — serviceFee:0 is the differentiator, not the profile.
+// Restock session: same checkoutId + privateKey as main checkout, separate profileId, no service fee.
 export async function POST(request: Request) {
   const privateKey = process.env.NORTH_PRIVATE_API_KEY;
   const checkoutId = process.env.NORTH_CHECKOUT_ID;
-  const profileId = process.env.NORTH_RESTOCK_PROFILE_ID ?? process.env.NORTH_PROFILE_ID;
+  const profileId = process.env.NORTH_RESTOCK_PROFILE_ID;
 
   if (!privateKey || !checkoutId || !profileId) {
     return NextResponse.json({ error: "Restock checkout is not configured." }, { status: 500 });
@@ -46,6 +45,17 @@ export async function POST(request: Request) {
   const serviceFee = 0;
   const amount = totalOverride ?? roundMoney(subtotal + tax + serviceFee);
 
+  const northBody = {
+    checkoutId,
+    profileId,
+    amount: roundMoney(amount),
+    tax: roundMoney(tax),
+    serviceFee: 0,
+    products: normalizedProducts,
+    metadata: JSON.stringify({ type: "pantry_restock" }),
+  };
+  console.log("[restock-session] sending to North:", JSON.stringify(northBody));
+
   try {
     const response = await fetch(`${NORTH_API_BASE}/api/sessions`, {
       method: "POST",
@@ -53,15 +63,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${privateKey}`,
       },
-      body: JSON.stringify({
-        checkoutId,
-        profileId,
-        amount: roundMoney(amount),
-        tax: roundMoney(tax),
-        serviceFee: 0,
-        products: normalizedProducts,
-        metadata: JSON.stringify({ type: "pantry_restock" }),
-      }),
+      body: JSON.stringify(northBody),
     });
 
     const payload = await response.json().catch(() => ({}));
