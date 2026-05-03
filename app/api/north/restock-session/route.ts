@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     tax: roundMoney(tax),
     serviceFee: 0,
     products: normalizedProducts,
-    metadata: JSON.stringify({ type: "pantry_restock" }),
+    metadata: JSON.stringify({}),
   };
   console.log("[restock-session] sending to North:", JSON.stringify(northBody));
 
