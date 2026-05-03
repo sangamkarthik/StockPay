@@ -79,26 +79,31 @@ export function NorthCheckout({ products, total, tax, serviceFee, onApproved, on
         const container = document.getElementById(CONTAINER_ID);
         if (container) container.innerHTML = "";
 
+        // Set up observer BEFORE mount so iframes created during mount are caught.
+        // Safari 17+ requires allow="payment" on any iframe for Apple Pay.
+        const applyPaymentAllow = (root: Element) => {
+          root.querySelectorAll("iframe").forEach((f) => {
+            if (!f.getAttribute("allow")?.includes("payment")) {
+              f.setAttribute(
+                "allow",
+                [f.getAttribute("allow"), "payment"].filter(Boolean).join("; "),
+              );
+            }
+          });
+        };
+        if (container) {
+          const observer = new MutationObserver(() => applyPaymentAllow(container));
+          observer.observe(container, { childList: true, subtree: true });
+        }
+
         await window.checkout!.mount(data.sessionToken, CONTAINER_ID, {
           amount: data.amount,
           tax: data.tax,
           serviceFee: data.serviceFee,
         });
 
-        // Safari 17+ requires allow="payment" on any iframe hosting Apple Pay.
-        // checkout.js creates the iframe — patch it after mount.
-        if (container) {
-          const applyPaymentAllow = (root: Element) => {
-            root.querySelectorAll("iframe").forEach((f) => {
-              if (!f.getAttribute("allow")?.includes("payment")) {
-                f.setAttribute("allow", [f.getAttribute("allow"), "payment"].filter(Boolean).join("; "));
-              }
-            });
-          };
-          applyPaymentAllow(container);
-          const observer = new MutationObserver(() => applyPaymentAllow(container));
-          observer.observe(container, { childList: true, subtree: true });
-        }
+        // Patch any iframes that already exist after mount resolves.
+        if (container) applyPaymentAllow(container);
 
         setStatus("ready");
       } catch (err) {
