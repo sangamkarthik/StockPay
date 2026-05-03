@@ -79,8 +79,10 @@ export default async function MealDbRecipePage({ params }: PageProps) {
   if (!meal) notFound();
 
   const mealDbId = meal.idMeal;
-  const existing = await prisma.savedRecipe.findUnique({ where: { mealDbId } }).catch(() => null);
-  const isSaved = existing !== null;
+  const rows = await prisma.$queryRaw<{ id: number }[]>`
+    SELECT id FROM saved_recipes WHERE meal_db_id = ${mealDbId} LIMIT 1
+  `.catch(() => []);
+  const isSaved = rows.length > 0;
 
   const ingredients = extractIngredients(meal);
   const steps = parseSteps(meal.strInstructions);
