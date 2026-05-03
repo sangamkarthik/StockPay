@@ -352,7 +352,7 @@ function getRecipeImages(recipe: RecipeWithIngredients) {
 function RecipeNavbar() {
   const links = [
     { href: "/dashboard", label: "Home" },
-    { href: "/recipes/1", label: "Recipes" },
+    { href: "/dashboard", label: "Recipes" },
     { href: "/pantry", label: "Pantry" },
     { href: "#", label: "Community" },
     { href: "#", label: "Shop" },
