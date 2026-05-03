@@ -7,7 +7,7 @@ import type { RecipeIngredient } from "./recipe-ingredients-panel";
 const TAX_RATE = 0.085;
 const SERVICE_FEE = 2.99;
 const DELIVERY_FEE = 4.99;
-const POLL_INTERVAL_MS = 8000;
+const ADVANCE_INTERVAL_MS = 5000;
 
 // DoorDash delivery_status values → human labels + progress (0-100)
 const STATUS_MAP: Record<string, { label: string; progress: number; emoji: string }> = {
@@ -49,7 +49,6 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
   const [authGuid, setAuthGuid] = useState("");
   const [refundState, setRefundState] = useState<RefundState>("idle");
   const [refundError, setRefundError] = useState("");
-  const [simulating, setSimulating] = useState(false);
 
   // Reset to fresh checkout state every time the modal is opened
   useEffect(() => {
@@ -62,7 +61,6 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
       setAuthGuid("");
       setRefundState("idle");
       setRefundError("");
-      setSimulating(false);
     }
   }, [isOpen]);
 
@@ -71,7 +69,8 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
   const [showSugg, setShowSugg] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const addrBoxRef = useRef<HTMLDivElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const deliveryStatusRef = useRef(deliveryStatus);
+  useEffect(() => { deliveryStatusRef.current = deliveryStatus; }, [deliveryStatus]);
 
   const products = ingredients.map((i) => ({
     name: i.name,
@@ -93,30 +92,49 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  // Poll DoorDash delivery status while confirmed — updates status, dasher, tracking URL
+  // Auto-advance delivery every 5 s: simulate next step + poll status for updates
   useEffect(() => {
     if (phase !== "confirmed" || !delivery) return;
-    const poll = async () => {
+    const TERMINAL = ["delivered", "delivery_cancelled"];
+
+    const tick = async () => {
+      const currentStatus = deliveryStatusRef.current;
       try {
-        const res = await fetch(`/api/doorstep/status?id=${delivery.delivery_id}`);
-        const data = await res.json();
-        if (data.status) setDeliveryStatus(data.status);
-        if (data.dasher) setLiveDasher(data.dasher);
-        if (data.tracking_url) setLiveTrackingUrl(data.tracking_url);
+        // Always poll status; only simulate when not yet terminal
+        const fetches: Promise<Response>[] = [fetch(`/api/doorstep/status?id=${delivery.delivery_id}`)];
+        if (!TERMINAL.includes(currentStatus)) {
+          fetches.push(fetch(`/api/doorstep/simulate?id=${delivery.delivery_id}`, { method: "POST" }));
+        }
+        const responses = await Promise.all(fetches);
+        const jsons = await Promise.all(responses.map((r) => r.json().catch(() => ({}))));
+        const statusData: Record<string, unknown> = jsons[0];
+        const simData: Record<string, unknown> = jsons[1] ?? {};
+
+        const newStatus = (statusData.status ?? simData.status) as string | undefined;
+        const newDasher = (statusData.dasher ?? simData.dasher) as DeliveryResult["dasher"] | undefined;
+        const newTracking = (statusData.tracking_url ?? null) as string | null;
+
+        if (newStatus) setDeliveryStatus(newStatus);
+        if (newTracking) setLiveTrackingUrl(newTracking);
+        if (newDasher) {
+          setLiveDasher(newDasher);
+        } else if (newStatus && !TERMINAL.includes(newStatus) && newStatus !== "created") {
+          // DoorDash sandbox never returns a real dasher — use a fallback so the demo works
+          setLiveDasher((prev) => prev ?? { name: "Alex M.", rating: 4.9, vehicle: "Toyota Camry" });
+        }
+
       } catch { /* ignore */ }
     };
-    poll();
-    pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+
+    tick(); // immediate first tick
+    const id = setInterval(tick, ADVANCE_INTERVAL_MS);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, delivery]);
 
-  // Auto-trigger refund when DoorDash cancels
+  // Auto-refund when DoorDash cancels
   useEffect(() => {
-    if (
-      deliveryStatus === "delivery_cancelled" &&
-      refundState === "idle" &&
-      authGuid
-    ) {
+    if (deliveryStatus === "delivery_cancelled" && refundState === "idle" && authGuid) {
       handleRefund();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -198,31 +216,6 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authGuid, grandTotal]);
-
-  const handleSimulate = useCallback(async () => {
-    if (!delivery || simulating) return;
-    setSimulating(true);
-    try {
-      const [simRes, statusRes] = await Promise.all([
-        fetch(`/api/doorstep/simulate?id=${delivery.delivery_id}`, { method: "POST" }),
-        fetch(`/api/doorstep/status?id=${delivery.delivery_id}`),
-      ]);
-      const [simData, statusData] = await Promise.all([simRes.json(), statusRes.json()]);
-
-      const newStatus = statusData.status ?? simData.status;
-      const newDasher = statusData.dasher ?? simData.dasher;
-
-      if (newStatus) setDeliveryStatus(newStatus);
-      if (newDasher) {
-        setLiveDasher(newDasher);
-      } else if (newStatus && newStatus !== "created" && newStatus !== "delivery_cancelled") {
-        // DoorDash sandbox never returns real dasher data — show a fallback so the demo works
-        setLiveDasher({ name: "Alex M.", rating: 4.9, vehicle: "Toyota Camry" });
-      }
-    } catch { /* ignore */ }
-    finally { setSimulating(false); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [delivery, simulating]);
 
   if (!isOpen) return null;
 
@@ -320,18 +313,9 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between rounded-2xl border border-dashed border-[#eadfce] bg-[#faf8f5] px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <span className="size-4 animate-spin rounded-full border-2 border-[#eadfce] border-t-primary" />
-                  <p className="text-xs text-[#9a9287]">Waiting for dasher assignment…</p>
-                </div>
-                <button
-                  onClick={handleSimulate}
-                  disabled={simulating}
-                  className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20 disabled:opacity-50"
-                >
-                  {simulating ? "…" : "▶ Next step"}
-                </button>
+              <div className="flex items-center gap-2 rounded-2xl border border-dashed border-[#eadfce] bg-[#faf8f5] px-4 py-3">
+                <span className="size-4 animate-spin rounded-full border-2 border-[#eadfce] border-t-primary" />
+                <p className="text-xs text-[#9a9287]">Assigning a dasher…</p>
               </div>
             )}
 
