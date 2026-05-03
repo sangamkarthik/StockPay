@@ -92,41 +92,41 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  // Auto-advance delivery every 5 s: simulate next step + poll status for updates
+  // Auto-advance delivery every 5 s
   useEffect(() => {
     if (phase !== "confirmed" || !delivery) return;
+
+    const PROGRESSION = [
+      "created", "enroute_to_pickup", "arrived_at_pickup",
+      "picked_up", "enroute_to_dropoff", "arrived_at_dropoff", "delivered",
+    ];
     const TERMINAL = ["delivered", "delivery_cancelled"];
 
-    const tick = async () => {
-      const currentStatus = deliveryStatusRef.current;
-      try {
-        // Always poll status; only simulate when not yet terminal
-        const fetches: Promise<Response>[] = [fetch(`/api/doorstep/status?id=${delivery.delivery_id}`)];
-        if (!TERMINAL.includes(currentStatus)) {
-          fetches.push(fetch(`/api/doorstep/simulate?id=${delivery.delivery_id}`, { method: "POST" }));
-        }
-        const responses = await Promise.all(fetches);
-        const jsons = await Promise.all(responses.map((r) => r.json().catch(() => ({}))));
-        const statusData: Record<string, unknown> = jsons[0];
-        const simData: Record<string, unknown> = jsons[1] ?? {};
+    const tick = () => {
+      const cur = deliveryStatusRef.current;
+      if (TERMINAL.includes(cur)) return;
 
-        const newStatus = (statusData.status ?? simData.status) as string | undefined;
-        const newDasher = (statusData.dasher ?? simData.dasher) as DeliveryResult["dasher"] | undefined;
-        const newTracking = (statusData.tracking_url ?? null) as string | null;
-
-        if (newStatus) setDeliveryStatus(newStatus);
-        if (newTracking) setLiveTrackingUrl(newTracking);
-        if (newDasher) {
-          setLiveDasher(newDasher);
-        } else if (newStatus && !TERMINAL.includes(newStatus) && newStatus !== "created") {
-          // DoorDash sandbox never returns a real dasher — use a fallback so the demo works
+      // Always advance client-side so the demo never stalls
+      const idx = PROGRESSION.indexOf(cur);
+      const next = idx >= 0 && idx < PROGRESSION.length - 1 ? PROGRESSION[idx + 1] : cur;
+      if (next !== cur) {
+        setDeliveryStatus(next);
+        if (next !== "created") {
           setLiveDasher((prev) => prev ?? { name: "Alex M.", rating: 4.9, vehicle: "Toyota Camry" });
         }
+      }
 
-      } catch { /* ignore */ }
+      // Best-effort: ping DoorDash simulate + pull any real tracking URL / dasher
+      fetch(`/api/doorstep/simulate?id=${delivery.delivery_id}`, { method: "POST" }).catch(() => {});
+      fetch(`/api/doorstep/status?id=${delivery.delivery_id}`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.tracking_url) setLiveTrackingUrl(d.tracking_url);
+          if (d.dasher) setLiveDasher(d.dasher);
+        })
+        .catch(() => {});
     };
 
-    tick(); // immediate first tick
     const id = setInterval(tick, ADVANCE_INTERVAL_MS);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
