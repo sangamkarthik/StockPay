@@ -239,7 +239,7 @@ export function PantryRestockModal({ isOpen, onClose }: Props) {
                   total={grandTotal}
                   tax={tax}
                   serviceFee={0}
-                  sessionEndpoint="/api/north/restock-session"
+                  sessionEndpoint="/api/north/session"
                   onApproved={handleApproved}
                   onError={() => {}}
                 />
