@@ -450,7 +450,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
     >
       <div
         className="flex w-full flex-col overflow-hidden rounded-3xl border border-[#eadfce] bg-white shadow-2xl shadow-[#2d2a25]/20"
-        style={{ maxWidth: "min(98vw, 1160px)", maxHeight: "94vh" }}
+        style={{ maxWidth: "min(98vw, 1240px)", maxHeight: "94vh" }}
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-[#eadfce] px-6 py-4">
@@ -477,7 +477,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
               onClick={() => setActiveTab(tab)}
               className={`flex-1 py-3 text-xs font-bold capitalize transition ${activeTab === tab ? "border-b-2 border-primary text-primary" : "text-[#9a9287]"}`}
             >
-              {tab === "cart" ? "Cart" : tab === "details" ? "Order & Address" : "Payment"}
+              {tab === "cart" ? "Cart" : tab === "details" ? "Details" : "Payment"}
             </button>
           ))}
         </div>
@@ -575,24 +575,6 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
               />
             </div>
 
-            {/* Billing address */}
-            <p className="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Billing address</p>
-            <div className="flex flex-col gap-2">
-              <div className="grid grid-cols-2 gap-2">
-                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="First name" />
-                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Last name" />
-              </div>
-              <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Billing street address" />
-              <div className="grid grid-cols-3 gap-2">
-                <input className="col-span-1 rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="City" />
-                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="State" />
-                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="ZIP" />
-              </div>
-              <label className="flex items-center gap-2 text-xs text-[#625d52]">
-                <input type="checkbox" className="rounded border-[#ddd3c5] accent-primary" defaultChecked />
-                Same as delivery address
-              </label>
-            </div>
           </div>
 
           {/* ── Right: North checkout ─────────────────── */}

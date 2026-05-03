@@ -28,7 +28,7 @@ const STAPLES = [
 
 type RestockItem = (typeof STAPLES)[number] & { qty: number };
 type Phase = "select" | "checkout" | "confirmed";
-type MobileTab = "items" | "payment";
+type MobileTab = "items" | "billing" | "payment";
 
 type Props = {
   isOpen: boolean;
@@ -114,7 +114,7 @@ export function PantryRestockModal({ isOpen, onClose }: Props) {
     >
       <div
         className="flex w-full flex-col overflow-hidden rounded-3xl border border-[#eadfce] bg-white shadow-2xl shadow-[#2d2a25]/20"
-        style={{ maxWidth: "min(98vw, 860px)", maxHeight: "94vh" }}
+        style={{ maxWidth: "min(98vw, 1100px)", maxHeight: "94vh" }}
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-[#eadfce] px-6 py-4">
@@ -136,20 +136,20 @@ export function PantryRestockModal({ isOpen, onClose }: Props) {
 
         {/* Mobile tabs */}
         <div className="flex shrink-0 border-b border-[#eadfce] md:hidden">
-          {(["items", "payment"] as MobileTab[]).map((tab) => (
+          {(["items", "billing", "payment"] as MobileTab[]).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setMobileTab(tab)}
               className={`flex-1 py-3 text-xs font-bold capitalize transition ${mobileTab === tab ? "border-b-2 border-primary text-primary" : "text-[#9a9287]"}`}
             >
-              {tab === "items" ? "Select Items" : "Payment"}
+              {tab === "items" ? "Items" : tab === "billing" ? "Billing" : "Payment"}
             </button>
           ))}
         </div>
 
-        {/* Body — 2-col on md+, tabbed on mobile */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:grid" style={{ gridTemplateColumns: "1fr 360px" }}>
+        {/* Body — 3-col on md+, tabbed on mobile */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:grid" style={{ gridTemplateColumns: "1fr 300px 360px" }}>
 
           {/* Left: staples checklist */}
           <div className={`flex flex-col overflow-y-auto border-r border-[#eadfce] p-5 ${mobileTab !== "items" ? "hidden md:flex" : ""}`}>
@@ -221,6 +221,26 @@ export function PantryRestockModal({ isOpen, onClose }: Props) {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Middle: billing address */}
+          <div className={`flex flex-col overflow-y-auto border-r border-[#eadfce] p-5 ${mobileTab !== "billing" ? "hidden md:flex" : ""}`}>
+            <p className="mb-3 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Billing address</p>
+            <div className="flex flex-col gap-2.5">
+              <div className="grid grid-cols-2 gap-2">
+                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="First name" />
+                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Last name" />
+              </div>
+              <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Street address" />
+              <div className="grid grid-cols-3 gap-2">
+                <input className="col-span-1 rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="City" />
+                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="State" />
+                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="ZIP" />
+              </div>
+              <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Country" defaultValue="United States" />
+              <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Email address" type="email" />
+              <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Phone number" type="tel" />
+            </div>
           </div>
 
           {/* Right: checkout */}
