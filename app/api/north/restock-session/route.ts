@@ -8,11 +8,13 @@ function roundMoney(value: number) {
 
 type Product = { name: string; price: number; quantity: number };
 
-// Restock session: same checkoutId + privateKey as main checkout, separate profileId, no service fee.
+// Restock session: same profile as main checkout, serviceFee always 0.
+// NORTH_RESTOCK_PROFILE_ID is used if active; falls back to NORTH_PROFILE_ID.
+// (North drops connections for inactive/misconfigured profiles — serviceFee:0 is the differentiator.)
 export async function POST(request: Request) {
   const privateKey = process.env.NORTH_PRIVATE_API_KEY;
   const checkoutId = process.env.NORTH_CHECKOUT_ID;
-  const profileId = process.env.NORTH_RESTOCK_PROFILE_ID;
+  const profileId = process.env.NORTH_RESTOCK_PROFILE_ID ?? process.env.NORTH_PROFILE_ID;
 
   if (!privateKey || !checkoutId || !profileId) {
     return NextResponse.json({ error: "Restock checkout is not configured." }, { status: 500 });
