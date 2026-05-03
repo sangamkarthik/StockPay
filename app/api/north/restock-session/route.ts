@@ -91,7 +91,9 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Network error";
-    console.error("[restock-session] fetch threw:", message);
-    return NextResponse.json({ error: message }, { status: 502 });
+    const cause = err instanceof Error && (err as NodeJS.ErrnoException).cause;
+    const code = err instanceof Error && (err as NodeJS.ErrnoException).code;
+    console.error("[restock-session] fetch threw:", message, "cause:", cause, "code:", code);
+    return NextResponse.json({ error: message, cause: String(cause ?? ""), code: String(code ?? "") }, { status: 502 });
   }
 }
