@@ -483,7 +483,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
         </div>
 
         {/* 3-column body — flex-col on mobile (tabs control visibility), grid on md+ */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:grid" style={{ gridTemplateColumns: "260px 1fr 380px" }}>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:grid" style={{ gridTemplateColumns: "260px 280px 1fr" }}>
 
           {/* ── Left: cart ─────────────────────────── */}
           <div className={`flex flex-col overflow-y-auto border-r border-[#eadfce] p-5 ${activeTab !== "cart" ? "hidden md:flex" : ""}`}>
@@ -578,7 +578,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
           </div>
 
           {/* ── Right: North checkout ─────────────────── */}
-          <div className={`flex flex-col p-5 ${activeTab !== "payment" ? "hidden md:flex" : ""}`}>
+          <div className={`flex flex-col overflow-x-hidden p-5 ${activeTab !== "payment" ? "hidden md:flex" : ""}`}>
             <p className="mb-4 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Secure payment</p>
             <div className="flex min-h-0 flex-1 flex-col">
               <NorthCheckout

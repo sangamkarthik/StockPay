@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { NorthCheckout } from "./north-checkout";
 
 const TAX_RATE = 0.085;
-const DELIVERY_FEE = 3.99;
 // No service fee for restock
 
 const STAPLES = [
@@ -62,7 +61,7 @@ export function PantryRestockModal({ isOpen, onClose }: Props) {
   const selected = items.filter((i) => i.qty > 0);
   const subtotal = selected.reduce((s, i) => s + i.price * i.qty, 0);
   const tax = subtotal * TAX_RATE;
-  const grandTotal = subtotal + tax + (selected.length > 0 ? DELIVERY_FEE : 0);
+  const grandTotal = subtotal + tax;
 
   const products = selected.map((i) => ({
     name: i.name,
@@ -122,7 +121,7 @@ export function PantryRestockModal({ isOpen, onClose }: Props) {
             <h2 className="text-lg font-bold text-[#2d2a25]">Restock Pantry</h2>
             <p className="mt-0.5 text-sm text-[#625d52]">
               {hasItems
-                ? `${selected.length} item${selected.length !== 1 ? "s" : ""} · $${grandTotal.toFixed(2)} total · No service fee`
+                ? `${selected.length} item${selected.length !== 1 ? "s" : ""} · $${grandTotal.toFixed(2)} total · Free delivery & no service fee`
                 : "Select staples to restock"}
             </p>
           </div>
@@ -143,7 +142,7 @@ export function PantryRestockModal({ isOpen, onClose }: Props) {
               onClick={() => setMobileTab(tab)}
               className={`flex-1 py-3 text-xs font-bold capitalize transition ${mobileTab === tab ? "border-b-2 border-primary text-primary" : "text-[#9a9287]"}`}
             >
-              {tab === "items" ? "Items" : tab === "billing" ? "Billing" : "Payment"}
+              {tab === "items" ? "Items" : tab === "billing" ? "Details" : "Payment"}
             </button>
           ))}
         </div>
@@ -206,12 +205,12 @@ export function PantryRestockModal({ isOpen, onClose }: Props) {
                   {[
                     ["Subtotal", `$${subtotal.toFixed(2)}`],
                     ["Tax (8.5%)", `$${tax.toFixed(2)}`],
-                    ["Delivery", `$${DELIVERY_FEE.toFixed(2)}`],
+                    ["Delivery", "Free ✓"],
                     ["Service fee", "Free ✓"],
                   ].map(([l, v]) => (
                     <div key={l} className="flex justify-between">
                       <span className="text-[#625d52]">{l}</span>
-                      <span className={`font-medium ${l === "Service fee" ? "text-primary" : "text-[#2d2a25]"}`}>{v}</span>
+                      <span className={`font-medium ${v === "Free ✓" ? "text-primary" : "text-[#2d2a25]"}`}>{v}</span>
                     </div>
                   ))}
                   <div className="flex justify-between border-t border-[#eadfce] pt-2">
@@ -223,23 +222,40 @@ export function PantryRestockModal({ isOpen, onClose }: Props) {
             )}
           </div>
 
-          {/* Middle: billing address */}
+          {/* Middle: delivery + billing address */}
           <div className={`flex flex-col overflow-y-auto border-r border-[#eadfce] p-5 ${mobileTab !== "billing" ? "hidden md:flex" : ""}`}>
-            <p className="mb-3 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Billing address</p>
-            <div className="flex flex-col gap-2.5">
+            {/* Delivery address */}
+            <p className="mb-2 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Delivery address</p>
+            <div className="flex flex-col gap-2">
+              <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Street address" />
+              <div className="grid grid-cols-2 gap-2">
+                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Apt / unit" />
+                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="ZIP code" />
+              </div>
+              <textarea
+                className="w-full resize-none rounded-xl border border-[#ddd3c5] bg-white px-3 py-2 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+                placeholder="Delivery instructions (optional)"
+                rows={2}
+              />
+            </div>
+
+            {/* Billing address */}
+            <p className="mb-2 mt-5 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Billing address</p>
+            <div className="flex flex-col gap-2">
               <div className="grid grid-cols-2 gap-2">
                 <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="First name" />
                 <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Last name" />
               </div>
-              <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Street address" />
+              <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Billing street address" />
               <div className="grid grid-cols-3 gap-2">
-                <input className="col-span-1 rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="City" />
+                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="City" />
                 <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="State" />
                 <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="ZIP" />
               </div>
-              <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Country" defaultValue="United States" />
-              <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Email address" type="email" />
-              <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Phone number" type="tel" />
+              <label className="flex items-center gap-2 text-xs text-[#625d52]">
+                <input type="checkbox" className="rounded border-[#ddd3c5] accent-primary" defaultChecked />
+                Same as delivery address
+              </label>
             </div>
           </div>
 

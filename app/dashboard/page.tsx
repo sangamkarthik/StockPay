@@ -77,8 +77,7 @@ export default function DashboardPage() {
       <main className="mx-auto w-full max-w-[1500px] px-4 pb-12 lg:px-8">
         <section className="relative isolate overflow-hidden rounded-4xl bg-[#fff6ee] px-5 py-10 shadow-sm shadow-[#8c6b3f]/5 lg:grid lg:min-h-[430px] lg:grid-cols-[0.78fr_1.22fr] lg:items-center lg:px-8">
           <div className="z-10 max-w-xl">
-            <p className="text-base text-primary">Good morning!</p>
-            <h1 className="mt-5 [font-family:var(--font-noto-serif)] text-5xl font-bold leading-[1.02] tracking-tight text-primary sm:text-6xl lg:text-[68px]">
+            <h1 className="[font-family:var(--font-noto-serif)] text-5xl font-bold leading-[1.02] tracking-tight text-primary sm:text-6xl lg:text-[68px]">
               What will you
               <span className="block">
                 <span className="text-[#df6040]">cook</span> today?
