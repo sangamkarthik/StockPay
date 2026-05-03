@@ -1,53 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
+import { prisma } from "../../lib/db/prisma";
 import { PantryOverview } from "../components/pantry-overview";
-import { RecipeCard, type RecipeCardProps } from "../components/recipe-card";
+import {
+  RecipeCard,
+  type PantryStatus,
+  type RecipeCardProps,
+} from "../components/recipe-card";
 import { RecipeCarousel } from "../components/recipe-carousel";
 import { RecipeSuggestions } from "../components/recipe-suggestions";
 import { SavedRecipesSection } from "../components/saved-recipes-section";
-
-const recipes: RecipeCardProps[] = [
-  {
-    title: "Creamy Garlic Pasta",
-    href: "/recipes/1",
-    image: "/images/pasta-thumb.png",
-    cookTime: "25 min",
-    rating: "4.8",
-    reviews: 126,
-    tags: ["Easy", "Vegetarian"],
-    pantryStatus: ["haveAll", "haveSome", "missing"],
-  },
-  {
-    title: "Teriyaki Tofu Stir Fry",
-    href: "/recipes/2",
-    image: "/images/pasta-hero.png",
-    cookTime: "30 min",
-    rating: "4.6",
-    reviews: 89,
-    tags: ["Easy", "Vegan"],
-    pantryStatus: ["haveAll", "haveSome", "missing"],
-  },
-  {
-    title: "Hearty Minestrone Soup",
-    href: "/recipes/3",
-    image: "/images/pasta-thumb.png",
-    cookTime: "40 min",
-    rating: "4.7",
-    reviews: 112,
-    tags: ["Easy", "Vegetarian"],
-    pantryStatus: ["haveAll", "haveSome", "missing"],
-  },
-  {
-    title: "Chicken Tacos",
-    href: "/recipes/4",
-    image: "/images/pasta-hero.png",
-    cookTime: "20 min",
-    rating: "4.5",
-    reviews: 78,
-    tags: ["Easy", "High Protein"],
-    pantryStatus: ["haveAll", "haveSome", "missing"],
-  },
-];
 
 const pantryItems = [
   {
@@ -70,7 +32,61 @@ const pantryItems = [
   },
 ];
 
-export default function DashboardPage() {
+async function getRecipeIdeas(): Promise<RecipeCardProps[]> {
+  const recipes = await prisma.recipe.findMany({
+    orderBy: [{ rating: "desc" }, { reviews: "desc" }, { createdAt: "desc" }],
+    select: {
+      cookTime: true,
+      id: true,
+      imageUrl: true,
+      imageUrls: true,
+      rating: true,
+      recipeIngredients: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+        select: {
+          pantryStatus: true,
+        },
+      },
+      reviews: true,
+      tags: true,
+      title: true,
+      totalTime: true,
+    },
+    take: 8,
+  });
+
+  return recipes.map((recipe) => ({
+    cookTime: recipe.totalTime ?? recipe.cookTime ?? "25 min",
+    href: `/recipes/${recipe.id}`,
+    image: recipe.imageUrl ?? recipe.imageUrls[0] ?? "/images/pasta-thumb.png",
+    pantryStatus: getPantryStatuses(recipe.recipeIngredients),
+    rating: recipe.rating ? Number(recipe.rating).toFixed(1) : "4.8",
+    reviews: recipe.reviews,
+    tags: recipe.tags.slice(0, 2),
+    title: recipe.title,
+  }));
+}
+
+function getPantryStatuses(
+  recipeIngredients: { pantryStatus: string }[],
+): PantryStatus[] {
+  const statusMap: Record<string, PantryStatus> = {
+    HAVE_ALL: "haveAll",
+    HAVE_SOME: "haveSome",
+    MISSING: "missing",
+  };
+  const statuses = recipeIngredients
+    .map(({ pantryStatus }) => statusMap[pantryStatus])
+    .filter((status): status is PantryStatus => Boolean(status));
+
+  return Array.from(new Set(statuses)).slice(0, 3);
+}
+
+export default async function DashboardPage() {
+  const recipes = await getRecipeIdeas();
+
   return (
     <div className="min-h-screen bg-[#FEF9F5] text-primary">
       <DashboardNavbar />

@@ -4,11 +4,7 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
-        hostname: "images.unsplash.com",
-        protocol: "https",
-      },
-      {
-        hostname: "www.themealdb.com",
+        hostname: "**",
         protocol: "https",
       },
     ],
