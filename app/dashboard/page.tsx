@@ -127,6 +127,9 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        <SavedRecipesSection />
+        <RecipeSuggestions />
+
         <div className="mt-7" id="recipes">
           <RecipeCarousel title="Recipe ideas for you">
             {recipes.map((recipe) => (
@@ -134,9 +137,6 @@ export default function DashboardPage() {
             ))}
           </RecipeCarousel>
         </div>
-
-        <SavedRecipesSection />
-        <RecipeSuggestions />
 
         <section className="mt-7 rounded-3xl border border-[#eadfce] bg-white/80 p-5 shadow-sm shadow-[#8c6b3f]/5">
           <div className="mb-5 flex items-center justify-between">
