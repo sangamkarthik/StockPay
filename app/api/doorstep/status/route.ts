@@ -11,9 +11,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing delivery id" }, { status: 400 });
   }
 
-  // Simulated deliveries — return static status
+  // Simulated deliveries — return static status + mock dasher
   if (deliveryId.startsWith("DEMO-")) {
-    return NextResponse.json({ status: "enroute_to_pickup", simulated: true });
+    return NextResponse.json({
+      status: "enroute_to_pickup",
+      simulated: true,
+      dasher: { name: "Alex M.", rating: 4.9, vehicle: "Toyota Camry" },
+    });
   }
 
   const developerId = process.env.DOORDASH_DEVELOPER_ID;

@@ -203,10 +203,22 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
     if (!delivery || simulating) return;
     setSimulating(true);
     try {
-      const res = await fetch(`/api/doorstep/simulate?id=${delivery.delivery_id}`, { method: "POST" });
-      const data = await res.json();
-      if (data.status) setDeliveryStatus(data.status);
-      if (data.dasher) setLiveDasher(data.dasher);
+      const [simRes, statusRes] = await Promise.all([
+        fetch(`/api/doorstep/simulate?id=${delivery.delivery_id}`, { method: "POST" }),
+        fetch(`/api/doorstep/status?id=${delivery.delivery_id}`),
+      ]);
+      const [simData, statusData] = await Promise.all([simRes.json(), statusRes.json()]);
+
+      const newStatus = statusData.status ?? simData.status;
+      const newDasher = statusData.dasher ?? simData.dasher;
+
+      if (newStatus) setDeliveryStatus(newStatus);
+      if (newDasher) {
+        setLiveDasher(newDasher);
+      } else if (newStatus && newStatus !== "created" && newStatus !== "delivery_cancelled") {
+        // DoorDash sandbox never returns real dasher data — show a fallback so the demo works
+        setLiveDasher({ name: "Alex M.", rating: 4.9, vehicle: "Toyota Camry" });
+      }
     } catch { /* ignore */ }
     finally { setSimulating(false); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
