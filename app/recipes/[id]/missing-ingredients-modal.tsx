@@ -537,10 +537,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
 
           {/* ── Right: North checkout ─────────────────── */}
           <div className="flex flex-col p-5">
-            <p className="mb-3 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Secure payment</p>
-            <div className="mb-3 shrink-0 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              ⚠️ <span className="font-semibold">Google Pay</span> is not available in test mode — use a card or Apple Pay.
-            </div>
+            <p className="mb-4 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Secure payment</p>
             <div className="flex min-h-0 flex-1 flex-col">
               <NorthCheckout
                 products={products}

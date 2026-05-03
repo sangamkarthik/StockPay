@@ -45,7 +45,7 @@ export function CommunitySection() {
             Share your remixes, discover new favorites, and get inspired every
             day.
           </p>
-          <Button className="mt-6 w-fit" href="#" size="sm" variant="outline">
+          <Button className="mt-6 w-fit" href="/dashboard" size="sm" variant="outline">
             Explore community
           </Button>
         </div>

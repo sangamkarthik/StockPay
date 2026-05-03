@@ -5,6 +5,7 @@ const infoItems = [
     color: "text-primary",
     bg: "bg-primary/10",
     icon: PantryIcon,
+    href: "/pantry",
   },
   {
     title: "Recipe Remix",
@@ -12,6 +13,7 @@ const infoItems = [
     color: "text-[#df6040]",
     bg: "bg-[#df6040]/10",
     icon: BowlIcon,
+    href: "/dashboard",
   },
   {
     title: "Shop Smarter",
@@ -19,6 +21,7 @@ const infoItems = [
     color: "text-[#d79a20]",
     bg: "bg-[#d79a20]/12",
     icon: BasketIcon,
+    href: "/recipes/1",
   },
   {
     title: "Save & Share",
@@ -26,6 +29,7 @@ const infoItems = [
     color: "text-[#c74a4a]",
     bg: "bg-[#c74a4a]/10",
     icon: HeartIcon,
+    href: "/dashboard",
   },
 ];
 
@@ -37,15 +41,16 @@ export function InfoBar() {
           const Icon = item.icon;
 
           return (
-            <div
-              className="relative flex min-h-36 flex-col items-center justify-center px-8 py-7 text-center"
+            <a
+              href={item.href}
+              className="group relative flex min-h-36 flex-col items-center justify-center px-8 py-7 text-center transition hover:bg-[#faf8f5]"
               key={item.title}
             >
               {index > 0 ? (
                 <span className="absolute left-0 top-1/2 hidden h-20 w-px -translate-y-1/2 bg-[#eadfce] md:block" />
               ) : null}
               <span
-                className={`mb-4 grid size-14 place-items-center rounded-full ${item.bg} ${item.color}`}
+                className={`mb-4 grid size-14 place-items-center rounded-full ${item.bg} ${item.color} transition group-hover:scale-110`}
               >
                 <Icon />
               </span>
@@ -55,7 +60,7 @@ export function InfoBar() {
               <p className="mt-2 max-w-48 text-sm leading-5 text-[#403d36]">
                 {item.description}
               </p>
-            </div>
+            </a>
           );
         })}
       </div>

@@ -17,7 +17,7 @@ export function FinalCtaSection() {
         </div>
 
         <div className="flex items-center gap-8">
-          <Button href="#">
+          <Button href="/dashboard">
             Get started free
           </Button>
           <ArrowAccent />

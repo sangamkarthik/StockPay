@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { Button } from "../components/button";
 
 const steps = [
@@ -8,6 +9,7 @@ const steps = [
     description: "Manually add or scan your pantry to see what you have.",
     image: "/illustrations/citrus-oil-basil.png",
     alt: "Illustration of pantry ingredients with oil, basil, and a jar",
+    href: "/pantry",
   },
   {
     number: "2",
@@ -15,6 +17,7 @@ const steps = [
     description: "We'll suggest recipes you can make with what's on hand.",
     image: "/illustrations/recipe-card.png",
     alt: "Illustration of recipe cards with pasta ideas",
+    href: "/dashboard",
   },
   {
     number: "3",
@@ -22,6 +25,7 @@ const steps = [
     description: "Follow easy steps, shop missing items, and enjoy.",
     image: "/illustrations/grocery-basket.png",
     alt: "Illustration of a grocery basket with ingredients",
+    href: "/recipes/1",
   },
 ];
 
@@ -36,10 +40,11 @@ export function HowItWorks() {
           Dinner, your way in 3 simple steps
         </h2>
 
-        <div className="mt-12 grid gap-12 md:grid-cols-3 md:gap-8">
+        <div id="how-it-works" className="mt-12 grid gap-12 md:grid-cols-3 md:gap-8">
           {steps.map((step, index) => (
-            <div
-              className="relative flex flex-col items-center"
+            <Link
+              href={step.href}
+              className="group relative flex flex-col items-center transition hover:opacity-90"
               key={step.title}
             >
               {index > 0 ? (
@@ -53,7 +58,7 @@ export function HowItWorks() {
                 <span className="absolute -left-9 -top-4 grid size-9 place-items-center rounded-full bg-[#d8e4c3] text-base font-bold text-primary">
                   {step.number}
                 </span>
-                <div className="absolute inset-1 rounded-3xl bg-[#EFEEE2]" />
+                <div className="absolute inset-1 rounded-3xl bg-[#EFEEE2] transition group-hover:bg-[#e5e4d6]" />
                 <Image
                   src={step.image}
                   alt={step.alt}
@@ -63,17 +68,20 @@ export function HowItWorks() {
                 />
               </div>
 
-              <h3 className="mt-3 text-lg font-bold text-[#2d2a25]">
+              <h3 className="mt-3 text-lg font-bold text-[#2d2a25] group-hover:text-primary">
                 {step.title}
               </h3>
               <p className="mt-2 max-w-56 text-sm leading-6 text-[#403d36]">
                 {step.description}
               </p>
-            </div>
+              <span className="mt-2 text-xs font-bold text-primary opacity-0 transition group-hover:opacity-100">
+                Try it →
+              </span>
+            </Link>
           ))}
         </div>
 
-        <Button className="mt-12" href="#" size="lg">
+        <Button className="mt-12" href="/dashboard" size="lg">
           Get started free
         </Button>
       </div>

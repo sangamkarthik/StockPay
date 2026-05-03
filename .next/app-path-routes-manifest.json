@@ -1,0 +1,17 @@
+{
+  "/.well-known/apple-developer-merchantid-domain-association/route": "/.well-known/apple-developer-merchantid-domain-association",
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/api/doorstep/route": "/api/doorstep",
+  "/api/doorstep/simulate/route": "/api/doorstep/simulate",
+  "/api/doorstep/status/route": "/api/doorstep/status",
+  "/api/ingredients/route": "/api/ingredients",
+  "/api/north/refund/route": "/api/north/refund",
+  "/api/north/session/route": "/api/north/session",
+  "/dashboard/page": "/dashboard",
+  "/favicon.ico/route": "/favicon.ico",
+  "/login/page": "/login",
+  "/page": "/",
+  "/pantry/page": "/pantry",
+  "/recipes/[id]/page": "/recipes/[id]"
+}

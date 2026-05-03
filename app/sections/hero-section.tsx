@@ -1,11 +1,19 @@
+"use client";
+
 import Image from "next/image";
+import { useState } from "react";
 import { Button } from "../components/button";
+import { DemoModal } from "../components/demo-modal";
 import { Navbar } from "../components/navbar";
 
 export function HeroSection() {
+  const [showDemo, setShowDemo] = useState(false);
+
   return (
     <>
       <Navbar />
+
+      {showDemo && <DemoModal onClose={() => setShowDemo(false)} />}
 
       <main className="relative isolate overflow-hidden">
         <div className="absolute inset-y-0 right-0 -z-10 hidden w-[62%] lg:block">
@@ -34,15 +42,19 @@ export function HeroSection() {
             </p>
 
             <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:items-center">
-              <Button href="#" size="lg">
+              <Button href="/dashboard" size="lg">
                 Get started free
               </Button>
-              <Button className="gap-3 px-3" href="#" size="lg" variant="ghost">
+              <button
+                className="inline-flex h-14 items-center gap-3 rounded-xl px-3 text-base font-medium text-[#2d2a25] transition hover:opacity-80"
+                onClick={() => setShowDemo(true)}
+                type="button"
+              >
                 <span className="grid size-11 place-items-center rounded-full border border-[#bfc7b4] bg-white/60">
                   <span className="ml-1 size-0 border-y-[7px] border-l-11 border-y-transparent border-l-primary" />
                 </span>
                 Watch how it works
-              </Button>
+              </button>
             </div>
 
             <div className="mt-10 flex items-center gap-4">
