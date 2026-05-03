@@ -450,7 +450,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
     >
       <div
         className="flex w-full flex-col overflow-hidden rounded-3xl border border-[#eadfce] bg-white shadow-2xl shadow-[#2d2a25]/20"
-        style={{ maxWidth: "min(98vw, 1520px)", maxHeight: "94vh" }}
+        style={{ maxWidth: "min(98vw, 1160px)", maxHeight: "94vh" }}
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-[#eadfce] px-6 py-4">
@@ -477,13 +477,13 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
               onClick={() => setActiveTab(tab)}
               className={`flex-1 py-3 text-xs font-bold capitalize transition ${activeTab === tab ? "border-b-2 border-primary text-primary" : "text-[#9a9287]"}`}
             >
-              {tab === "cart" ? "Cart" : tab === "details" ? "Details" : "Payment"}
+              {tab === "cart" ? "Cart" : tab === "details" ? "Order & Address" : "Payment"}
             </button>
           ))}
         </div>
 
         {/* 3-column body — flex-col on mobile (tabs control visibility), grid on md+ */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:grid" style={{ gridTemplateColumns: "300px 340px 1fr" }}>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:grid" style={{ gridTemplateColumns: "260px 1fr 380px" }}>
 
           {/* ── Left: cart ─────────────────────────── */}
           <div className={`flex flex-col overflow-y-auto border-r border-[#eadfce] p-5 ${activeTab !== "cart" ? "hidden md:flex" : ""}`}>
@@ -505,10 +505,11 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
             </div>
           </div>
 
-          {/* ── Middle: order details + address ──────── */}
+          {/* ── Middle: order details + delivery + billing ──────── */}
           <div className={`flex flex-col overflow-y-auto border-r border-[#eadfce] p-5 ${activeTab !== "details" ? "hidden md:flex" : ""}`}>
-            <p className="mb-4 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Order details</p>
 
+            {/* Order summary */}
+            <p className="mb-3 shrink-0 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Order summary</p>
             <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-4">
               <div className="space-y-2.5 text-sm">
                 {[
@@ -529,7 +530,7 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
               </div>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-[#eadfce] bg-[#f0faf2] px-4 py-3">
+            <div className="mt-3 rounded-2xl border border-[#eadfce] bg-[#f0faf2] px-4 py-2.5">
               <div className="flex items-center gap-2">
                 <span>🚚</span>
                 <div>
@@ -539,12 +540,13 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
               </div>
             </div>
 
-            <div className="mt-4 flex flex-col gap-2">
-              <label className="text-xs font-bold text-[#2d2a25]">Delivery address</label>
+            {/* Delivery address */}
+            <p className="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Delivery address</p>
+            <div className="flex flex-col gap-2">
               <div ref={addrBoxRef} className="relative">
                 <input
                   className="w-full rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                  placeholder="Start typing your address…"
+                  placeholder="Street address"
                   value={address}
                   autoComplete="off"
                   onChange={(e) => handleAddressChange(e.target.value)}
@@ -571,6 +573,25 @@ export function MissingIngredientsModal({ ingredients, isOpen, onClose }: Missin
                 placeholder="Delivery instructions (optional)"
                 rows={2}
               />
+            </div>
+
+            {/* Billing address */}
+            <p className="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-[#9a9287]">Billing address</p>
+            <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="First name" />
+                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Last name" />
+              </div>
+              <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="Billing street address" />
+              <div className="grid grid-cols-3 gap-2">
+                <input className="col-span-1 rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="City" />
+                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="State" />
+                <input className="rounded-xl border border-[#ddd3c5] bg-white px-3 py-2.5 text-sm text-[#2d2a25] placeholder:text-[#b5a99a] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30" placeholder="ZIP" />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-[#625d52]">
+                <input type="checkbox" className="rounded border-[#ddd3c5] accent-primary" defaultChecked />
+                Same as delivery address
+              </label>
             </div>
           </div>
 
