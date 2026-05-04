@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const NORTH_API_BASE = "https://checkout-api.north.com/public";
+const NORTH_API_BASE = "https://checkout.north.com";
 
 function roundMoney(value: number) {
   return Math.round(Number(value || 0) * 100) / 100;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const NORTH_API_BASE = "https://checkout-api.north.com/public";
+const NORTH_API_BASE = "https://checkout.north.com";
 
 // Void cancels an authorised transaction before it settles.
 // Use this immediately after a delivery cancellation when capture hasn't happened yet.

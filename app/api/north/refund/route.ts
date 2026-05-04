@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const NORTH_API_BASE = "https://checkout-api.north.com/public";
+const NORTH_API_BASE = "https://checkout.north.com";
 
 export async function POST(request: Request) {
   const privateKey = process.env.NORTH_PRIVATE_API_KEY;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const NORTH_API_BASE = "https://checkout-api.north.com/public";
+const NORTH_API_BASE = "https://checkout.north.com";
 
 // Reversal undoes a settled transaction (use after settlement when void is no longer available).
 export async function POST(request: Request) {

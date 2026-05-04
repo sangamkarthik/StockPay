@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const NORTH_API_BASE = "https://checkout-api.north.com/public";
+const NORTH_API_BASE = "https://checkout.north.com";
 
 // Capture finalises a prior auth-only transaction.
 export async function POST(request: Request) {

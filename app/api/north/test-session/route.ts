@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const NORTH_API_BASE = "https://checkout-api.north.com/public";
+const NORTH_API_BASE = "https://checkout.north.com";
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 4, delayMs = 300): Promise<Response> {
   for (let i = 0; i <= retries; i++) {
