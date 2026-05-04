@@ -73,13 +73,24 @@ export async function createNorthSession({
 
   // North charges sum(products). Sending tax/serviceFee as separate fields does NOT
   // add them to the charge — North uses those fields for display only. To authorize
-  // the full grand total, we include fees as a single product line item using a
-  // neutral name ("Fulfillment") that North won't extract into tax/serviceFee fields.
+  // the full grand total, we include fees as product line items using names that
+  // North won't intercept ("Sales Tax" and "Delivery Fee" are safe; "Tax" and
+  // "Delivery & Service Fee" get extracted by North and removed from the total).
   const grandTotal = roundMoney(total || amount || productAmount);
-  const feeTotal = roundMoney(grandTotal - productAmount);
+  const taxAmount = roundMoney(tax);
+  const feeAmount = roundMoney(serviceFee);
   const northProducts = [...normalizedProducts];
-  if (feeTotal > 0) {
-    northProducts.push({ name: 'Fulfillment', price: feeTotal, quantity: 1, logoUrl: '' });
+  if (taxAmount > 0) {
+    northProducts.push({ name: 'Sales Tax', price: taxAmount, quantity: 1, logoUrl: '' });
+  }
+  if (feeAmount > 0) {
+    northProducts.push({ name: 'Delivery Fee', price: feeAmount, quantity: 1, logoUrl: '' });
+  }
+  // If total doesn't match sum(products + fees), add a remainder as Fulfillment
+  const lineTotal = roundMoney(northProducts.reduce((sum, p) => sum + p.price * p.quantity, 0));
+  const remainder = roundMoney(grandTotal - lineTotal);
+  if (remainder > 0) {
+    northProducts.push({ name: 'Fulfillment', price: remainder, quantity: 1, logoUrl: '' });
   }
   const northAmount = roundMoney(northProducts.reduce((sum, p) => sum + p.price * p.quantity, 0));
 
