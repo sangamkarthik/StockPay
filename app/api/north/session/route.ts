@@ -43,7 +43,17 @@ export async function POST(request: Request) {
   const subtotal = normalizedProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
   const tax = taxOverride ?? 0;
   const serviceFee = serviceFeeOverride ?? 0;
-  const amount = roundMoney(subtotal + tax + serviceFee);
+
+  // North authorizes sum(products) — it ignores amount/tax/serviceFee fields.
+  // Append fee line items so sum(products) equals the full grand total.
+  const northProducts = [...normalizedProducts];
+  if (roundMoney(tax) > 0) {
+    northProducts.push({ name: "Tax", price: roundMoney(tax), quantity: 1 });
+  }
+  if (roundMoney(serviceFee) > 0) {
+    northProducts.push({ name: "Delivery & Service Fee", price: roundMoney(serviceFee), quantity: 1 });
+  }
+  const amount = roundMoney(northProducts.reduce((sum, p) => sum + p.price * p.quantity, 0));
 
   try {
     const response = await fetch(`${NORTH_API_BASE}/api/sessions`, {
@@ -56,26 +66,14 @@ export async function POST(request: Request) {
         checkoutId,
         profileId,
         amount,
-        tax: roundMoney(tax),
-        serviceFee: roundMoney(serviceFee),
-        products: normalizedProducts,
+        tax: 0,
+        serviceFee: 0,
+        products: northProducts,
         metadata: JSON.stringify({}),
       }),
     });
 
     const payload = await response.json().catch(() => ({}));
-
-    // Decode JWT to see what amount North actually encoded in the session
-    const token = payload.sessionToken || payload.token || payload.data?.sessionToken || payload.data?.token || "";
-    let jwtPayload: Record<string, unknown> = {};
-    try {
-      const parts = token.split(".");
-      if (parts.length === 3) jwtPayload = JSON.parse(Buffer.from(parts[1], "base64").toString());
-    } catch { /* ignore */ }
-
-    console.log("[north/session] REQUEST sent to North:", JSON.stringify({ amount, tax: roundMoney(tax), serviceFee: roundMoney(serviceFee), productsCount: normalizedProducts.length, subtotal: roundMoney(subtotal) }));
-    console.log("[north/session] RESPONSE status:", response.status, "raw payload:", JSON.stringify(payload));
-    console.log("[north/session] JWT decoded:", JSON.stringify(jwtPayload));
 
     if (!response.ok) {
       return NextResponse.json(
