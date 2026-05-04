@@ -65,7 +65,17 @@ export async function POST(request: Request) {
 
     const payload = await response.json().catch(() => ({}));
 
-    console.log("[north/session] status:", response.status, "payload:", JSON.stringify(payload));
+    // Decode JWT to see what amount North actually encoded in the session
+    const token = payload.sessionToken || payload.token || payload.data?.sessionToken || payload.data?.token || "";
+    let jwtPayload: Record<string, unknown> = {};
+    try {
+      const parts = token.split(".");
+      if (parts.length === 3) jwtPayload = JSON.parse(Buffer.from(parts[1], "base64").toString());
+    } catch { /* ignore */ }
+
+    console.log("[north/session] REQUEST sent to North:", JSON.stringify({ amount, tax: roundMoney(tax), serviceFee: roundMoney(serviceFee), productsCount: normalizedProducts.length, subtotal: roundMoney(subtotal) }));
+    console.log("[north/session] RESPONSE status:", response.status, "raw payload:", JSON.stringify(payload));
+    console.log("[north/session] JWT decoded:", JSON.stringify(jwtPayload));
 
     if (!response.ok) {
       return NextResponse.json(
