@@ -41,12 +41,12 @@ export async function POST(request: Request) {
   const tax = roundMoney(taxOverride ?? 0);
   const serviceFee = roundMoney(serviceFeeOverride ?? 0);
 
-  // North charges sum(products) and validates amount == sum(products).
-  // Tax and serviceFee are display-only. To authorize the full grand total,
-  // append fee line items so sum(products) = grand total, and send tax/serviceFee=0.
+  // North charges sum(products). Names "Tax" and "Delivery & Service Fee" are
+  // intercepted by North and removed from the product total — so we use a neutral
+  // name "Order Handling" so the fee rolls into the charged amount.
   const northProducts = [...normalizedProducts];
-  if (tax > 0) northProducts.push({ name: "Tax", price: tax, quantity: 1 });
-  if (serviceFee > 0) northProducts.push({ name: "Delivery & Service Fee", price: serviceFee, quantity: 1 });
+  const feeTotal = roundMoney(tax + serviceFee);
+  if (feeTotal > 0) northProducts.push({ name: "Order Handling", price: feeTotal, quantity: 1 });
   const amount = roundMoney(northProducts.reduce((sum, p) => sum + p.price * p.quantity, 0));
 
   const northBody = {
