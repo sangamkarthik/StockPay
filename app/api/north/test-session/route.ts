@@ -1,5 +1,23 @@
 import { NextResponse } from "next/server";
 
+const NORTH_API_BASE = "https://checkout-api.north.com/public";
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = 4, delayMs = 300): Promise<Response> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fetch(url, options);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException & { cause?: NodeJS.ErrnoException }).cause?.code;
+      if (code === "ENOTFOUND" && i < retries) {
+        await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Unreachable");
+}
+
 export async function GET() {
   const privateKey = process.env.NORTH_PRIVATE_API_KEY;
   const checkoutId = process.env.NORTH_CHECKOUT_ID;
@@ -15,34 +33,41 @@ export async function GET() {
     metadata: "{}",
   };
 
-  const response = await fetch("https://checkout-api.north.com/public/api/sessions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${privateKey}`,
-    },
-    body: JSON.stringify(requestBody),
-  });
-
-  const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
-
-  const token =
-    (payload.sessionToken as string) ||
-    (payload.token as string) ||
-    ((payload.data as Record<string, string> | undefined)?.sessionToken) || "";
-
-  let jwtDecoded: Record<string, unknown> = {};
   try {
-    if (token) {
-      const parts = token.split(".");
-      jwtDecoded = JSON.parse(Buffer.from(parts[1], "base64url").toString());
-    }
-  } catch { /* ignore */ }
+    const response = await fetchWithRetry(
+      `${NORTH_API_BASE}/api/sessions`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${privateKey}`,
+        },
+        body: JSON.stringify(requestBody),
+      },
+    );
 
-  return NextResponse.json({
-    requestSentToNorth: requestBody,
-    northHttpStatus: response.status,
-    northRawResponse: payload,
-    sessionTokenJwtDecoded: jwtDecoded,
-  });
+    const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+
+    const token =
+      (payload.sessionToken as string) ||
+      (payload.token as string) ||
+      ((payload.data as Record<string, string> | undefined)?.sessionToken) || "";
+
+    let jwtDecoded: Record<string, unknown> = {};
+    try {
+      if (token) {
+        const parts = token.split(".");
+        jwtDecoded = JSON.parse(Buffer.from(parts[1], "base64url").toString());
+      }
+    } catch { /* ignore */ }
+
+    return NextResponse.json({
+      requestSentToNorth: requestBody,
+      northHttpStatus: response.status,
+      northRawResponse: payload,
+      sessionTokenJwtDecoded: jwtDecoded,
+    });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 502 });
+  }
 }
