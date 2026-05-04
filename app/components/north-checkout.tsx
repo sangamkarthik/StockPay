@@ -179,9 +179,9 @@ export function NorthCheckout({ products, total, tax, serviceFee, sessionEndpoin
         }
 
         await window.checkout!.mount(data.sessionToken, CONTAINER_ID, {
-          amount: data.subtotal ?? data.amount,
-          tax: data.tax,
-          serviceFee: data.serviceFee,
+          amount: data.amount,
+          tax: 0,
+          serviceFee: 0,
         });
 
         if (container) applyPaymentAllow(container);

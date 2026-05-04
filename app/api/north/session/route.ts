@@ -38,11 +38,16 @@ export async function POST(request: Request) {
       quantity: Number(p.quantity || 1),
     }));
 
-  const subtotal = roundMoney(normalizedProducts.reduce((sum, p) => sum + p.price * p.quantity, 0));
   const tax = roundMoney(taxOverride ?? 0);
   const serviceFee = roundMoney(serviceFeeOverride ?? 0);
-  // North validates: amount == sum(products) + tax + serviceFee
-  const amount = roundMoney(subtotal + tax + serviceFee);
+
+  // North charges sum(products) and validates amount == sum(products).
+  // Tax and serviceFee are display-only. To authorize the full grand total,
+  // append fee line items so sum(products) = grand total, and send tax/serviceFee=0.
+  const northProducts = [...normalizedProducts];
+  if (tax > 0) northProducts.push({ name: "Tax", price: tax, quantity: 1 });
+  if (serviceFee > 0) northProducts.push({ name: "Delivery & Service Fee", price: serviceFee, quantity: 1 });
+  const amount = roundMoney(northProducts.reduce((sum, p) => sum + p.price * p.quantity, 0));
 
   try {
     const response = await fetch(`${NORTH_API_BASE}/api/sessions`, {
@@ -55,9 +60,9 @@ export async function POST(request: Request) {
         checkoutId,
         profileId,
         amount,
-        tax,
-        serviceFee,
-        products: normalizedProducts,
+        tax: 0,
+        serviceFee: 0,
+        products: northProducts,
         metadata: JSON.stringify({}),
       }),
     });
@@ -77,10 +82,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       sessionToken,
-      subtotal,
+      amount,
       tax,
       serviceFee,
-      amount,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Network error";
