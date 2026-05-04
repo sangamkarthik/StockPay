@@ -65,6 +65,8 @@ export async function POST(request: Request) {
 
     const payload = await response.json().catch(() => ({}));
 
+    console.log("[north/session] status:", response.status, "payload:", JSON.stringify(payload));
+
     if (!response.ok) {
       return NextResponse.json(
         { error: payload.message || "Failed to create checkout session." },
