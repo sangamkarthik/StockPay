@@ -178,10 +178,13 @@ export function NorthCheckout({ products, total, tax, serviceFee, sessionEndpoin
           observer.observe(container, { childList: true, subtree: true });
         }
 
+        // Pass the full grand total as amount with tax/serviceFee = 0.
+        // North subtracts tax+serviceFee from amount to compute the displayed subtotal,
+        // so passing them separately causes it to show/charge only the subtotal.
         await window.checkout!.mount(data.sessionToken, CONTAINER_ID, {
-          amount: data.amount,
-          tax: data.tax,
-          serviceFee: data.serviceFee,
+          amount: total,
+          tax: 0,
+          serviceFee: 0,
         });
 
         if (container) applyPaymentAllow(container);
