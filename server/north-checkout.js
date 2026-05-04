@@ -63,23 +63,37 @@ export async function createNorthSession({
   amount,
   tax = 0,
   serviceFee = 0,
+  total,
   metadata = {},
 } = {}) {
   requireNorthConfig();
 
   const normalizedProducts = normalizeProducts(products);
-  const productAmount = normalizedProducts.reduce((sum, product) => sum + product.price * product.quantity, 0);
+  const productAmount = roundMoney(normalizedProducts.reduce((sum, product) => sum + product.price * product.quantity, 0));
+
+  // North charges sum(products). Sending tax/serviceFee as separate fields does NOT
+  // add them to the charge — North uses those fields for display only. To authorize
+  // the full grand total, we include fees as a single product line item using a
+  // neutral name ("Fulfillment") that North won't extract into tax/serviceFee fields.
+  const grandTotal = roundMoney(total || amount || productAmount);
+  const feeTotal = roundMoney(grandTotal - productAmount);
+  const northProducts = [...normalizedProducts];
+  if (feeTotal > 0) {
+    northProducts.push({ name: 'Fulfillment', price: feeTotal, quantity: 1, logoUrl: '' });
+  }
+  const northAmount = roundMoney(northProducts.reduce((sum, p) => sum + p.price * p.quantity, 0));
+
   const body = {
     checkoutId: process.env.NORTH_CHECKOUT_ID,
     profileId: process.env.NORTH_PROFILE_ID,
     metadata: JSON.stringify(metadata),
-    amount: roundMoney(amount || productAmount),
-    tax: roundMoney(tax),
-    serviceFee: roundMoney(serviceFee),
+    amount: northAmount,
+    tax: 0,
+    serviceFee: 0,
   };
 
-  if (normalizedProducts.length) {
-    body.products = normalizedProducts;
+  if (northProducts.length) {
+    body.products = northProducts;
   }
 
   const response = await northFetch('/api/sessions', {
@@ -103,14 +117,9 @@ export async function createNorthSession({
 
   return {
     sessionToken: extractSessionToken(payload),
-    expiresInMinutes: 30,
-    request: {
-      amount: body.amount,
-      tax: body.tax,
-      serviceFee: body.serviceFee,
-      products: normalizedProducts,
-    },
-    raw: payload,
+    amount: northAmount,
+    tax: roundMoney(tax),
+    serviceFee: roundMoney(serviceFee),
   };
 }
 
