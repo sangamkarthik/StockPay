@@ -20,14 +20,12 @@ export async function POST(request: Request) {
   let products: Product[] = [];
   let taxOverride: number | undefined;
   let serviceFeeOverride: number | undefined;
-  let totalOverride: number | undefined;
 
   try {
     const body = await request.json();
     products = Array.isArray(body.products) ? body.products : [];
     taxOverride = typeof body.tax === "number" ? body.tax : undefined;
     serviceFeeOverride = typeof body.serviceFee === "number" ? body.serviceFee : undefined;
-    totalOverride = typeof body.total === "number" ? body.total : undefined;
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
@@ -40,20 +38,11 @@ export async function POST(request: Request) {
       quantity: Number(p.quantity || 1),
     }));
 
-  const subtotal = normalizedProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
-  const tax = taxOverride ?? 0;
-  const serviceFee = serviceFeeOverride ?? 0;
-
-  // North authorizes sum(products) — it ignores amount/tax/serviceFee fields.
-  // Append fee line items so sum(products) equals the full grand total.
-  const northProducts = [...normalizedProducts];
-  if (roundMoney(tax) > 0) {
-    northProducts.push({ name: "Tax", price: roundMoney(tax), quantity: 1 });
-  }
-  if (roundMoney(serviceFee) > 0) {
-    northProducts.push({ name: "Delivery & Service Fee", price: roundMoney(serviceFee), quantity: 1 });
-  }
-  const amount = roundMoney(northProducts.reduce((sum, p) => sum + p.price * p.quantity, 0));
+  const subtotal = roundMoney(normalizedProducts.reduce((sum, p) => sum + p.price * p.quantity, 0));
+  const tax = roundMoney(taxOverride ?? 0);
+  const serviceFee = roundMoney(serviceFeeOverride ?? 0);
+  // North validates: amount == sum(products) + tax + serviceFee
+  const amount = roundMoney(subtotal + tax + serviceFee);
 
   try {
     const response = await fetch(`${NORTH_API_BASE}/api/sessions`, {
@@ -66,9 +55,9 @@ export async function POST(request: Request) {
         checkoutId,
         profileId,
         amount,
-        tax: 0,
-        serviceFee: 0,
-        products: northProducts,
+        tax,
+        serviceFee,
+        products: normalizedProducts,
         metadata: JSON.stringify({}),
       }),
     });
@@ -88,9 +77,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       sessionToken,
-      amount: roundMoney(amount),
-      tax: roundMoney(tax),
-      serviceFee: roundMoney(serviceFee),
+      subtotal,
+      tax,
+      serviceFee,
+      amount,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Network error";
