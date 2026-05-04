@@ -29,7 +29,7 @@ export async function GET() {
     amount: 10,
     tax: 3,
     serviceFee: 2,
-    products: [],
+    products: [{ name: "Test Item", price: 1, quantity: 1 }],
     metadata: "{}",
   };
 
