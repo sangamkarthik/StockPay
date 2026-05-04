@@ -49,6 +49,17 @@ export async function POST(request: Request) {
   if (serviceFee > 0) northProducts.push({ name: "Delivery & Service Fee", price: serviceFee, quantity: 1 });
   const amount = roundMoney(northProducts.reduce((sum, p) => sum + p.price * p.quantity, 0));
 
+  const northBody = {
+    checkoutId,
+    profileId,
+    amount,
+    tax: 0,
+    serviceFee: 0,
+    products: northProducts,
+    metadata: JSON.stringify({}),
+  };
+  console.log("[north/session] request →", JSON.stringify(northBody));
+
   try {
     const response = await fetch(`${NORTH_API_BASE}/api/sessions`, {
       method: "POST",
@@ -56,18 +67,11 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${privateKey}`,
       },
-      body: JSON.stringify({
-        checkoutId,
-        profileId,
-        amount,
-        tax: 0,
-        serviceFee: 0,
-        products: northProducts,
-        metadata: JSON.stringify({}),
-      }),
+      body: JSON.stringify(northBody),
     });
 
     const payload = await response.json().catch(() => ({}));
+    console.log("[north/session] response ←", response.status, JSON.stringify(payload));
 
     if (!response.ok) {
       return NextResponse.json(
