@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "../../lib/db/prisma";
+import { DashboardPantryHighlights } from "../components/dashboard-pantry-highlights";
 import { PantryOverview } from "../components/pantry-overview";
 import {
   RecipeCard,
@@ -10,27 +11,6 @@ import {
 import { RecipeCarousel } from "../components/recipe-carousel";
 import { RecipeSuggestions } from "../components/recipe-suggestions";
 import { SavedRecipesSection } from "../components/saved-recipes-section";
-
-const pantryItems = [
-  {
-    label: "Have all",
-    count: 22,
-    description: "Ready to cook",
-    tone: "green" as const,
-  },
-  {
-    label: "Have some",
-    count: 6,
-    description: "Almost there",
-    tone: "gold" as const,
-  },
-  {
-    label: "Missing",
-    count: 7,
-    description: "Add to list",
-    tone: "red" as const,
-  },
-];
 
 async function getRecipeIdeas(): Promise<RecipeCardProps[]> {
   const recipes = await prisma.recipe.findMany({
@@ -131,14 +111,14 @@ export default async function DashboardPage() {
                 fill
                 priority
                 sizes="(min-width: 1024px) 760px, 100vw"
-                src="/images/pasta-hero.png"
+                src="/images/pasta-hero1.png"
               />
               <div className="absolute inset-y-0 left-0 hidden w-1/2 bg-linear-to-r from-[#fff6ee] to-transparent lg:block" />
               <div className="absolute inset-0 bg-linear-to-t from-[#fff6ee]/45 to-transparent lg:hidden" />
             </div>
 
             <div className="relative z-10 ml-auto max-w-xs pt-8 lg:mr-4">
-              <PantryOverview items={pantryItems} />
+              <PantryOverview />
             </div>
           </div>
         </section>
@@ -169,9 +149,7 @@ export default async function DashboardPage() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3" id="pantry">
-            {pantryItems.map((item) => (
-              <IngredientHighlight key={item.label} {...item} />
-            ))}
+            <DashboardPantryHighlights />
           </div>
         </section>
       </main>
@@ -232,55 +210,6 @@ function DashboardNavbar() {
         <BellIcon />
       </button>
     </header>
-  );
-}
-
-function IngredientHighlight({
-  count,
-  description,
-  label,
-  tone,
-}: (typeof pantryItems)[number]) {
-  const styles = {
-    green: {
-      bg: "bg-primary/8",
-      iconBg: "bg-primary/10",
-      text: "text-primary",
-      icon: <LeafIcon />,
-    },
-    gold: {
-      bg: "bg-[#d79a20]/8",
-      iconBg: "bg-[#d79a20]/12",
-      text: "text-[#d79a20]",
-      icon: <BowlIcon />,
-    },
-    red: {
-      bg: "bg-[#df6040]/8",
-      iconBg: "bg-[#df6040]/10",
-      text: "text-[#df6040]",
-      icon: <BagIcon />,
-    },
-  }[tone];
-
-  return (
-    <article
-      className={`flex min-h-28 items-center gap-4 rounded-2xl border border-[#eadfce] ${styles.bg} px-5 py-4`}
-    >
-      <span
-        className={`grid size-14 place-items-center rounded-full ${styles.iconBg} ${styles.text}`}
-      >
-        {styles.icon}
-      </span>
-      <div>
-        <p className={`text-2xl font-bold leading-none ${styles.text}`}>
-          {count}
-        </p>
-        <h3 className="mt-1 text-sm font-bold text-[#2d2a25]">
-          You {label.toLowerCase()}
-        </h3>
-        <p className="mt-1 text-xs text-[#625d52]">{description}</p>
-      </div>
-    </article>
   );
 }
 
@@ -379,57 +308,3 @@ function ArrowRightIcon() {
   );
 }
 
-function LeafIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-6"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-      viewBox="0 0 24 24"
-    >
-      <path d="M20 4c-7.5 0-12 4.5-12 10a6 6 0 0 0 6 6c5.5 0 8-6 6-16Z" />
-      <path d="M4 20c3-6 7-9 12-10" />
-    </svg>
-  );
-}
-
-function BowlIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-6"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-      viewBox="0 0 24 24"
-    >
-      <path d="M4 11h16l-1.4 5.2A4 4 0 0 1 14.7 19H9.3a4 4 0 0 1-3.9-2.8L4 11Z" />
-      <path d="M7 11 5.5 7.5" />
-      <path d="M17 11l1.5-3.5" />
-    </svg>
-  );
-}
-
-function BagIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-6"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-      viewBox="0 0 24 24"
-    >
-      <path d="M6 8h12l1 13H5L6 8Z" />
-      <path d="M9 8a3 3 0 0 1 6 0" />
-    </svg>
-  );
-}

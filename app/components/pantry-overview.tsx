@@ -1,14 +1,13 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { useIngredients } from "../context/ingredients-context";
 
 type PantryItem = {
   label: string;
   count: number;
   description: string;
   tone: "green" | "gold" | "red";
-};
-
-type PantryOverviewProps = {
-  items: PantryItem[];
 };
 
 const toneStyles: Record<
@@ -32,7 +31,17 @@ const toneStyles: Record<
   },
 };
 
-export function PantryOverview({ items }: PantryOverviewProps) {
+export function PantryOverview() {
+  const { ingredients } = useIngredients();
+  const count = ingredients.length;
+  const item: PantryItem = {
+    count,
+    description: count === 1 ? "Ingredient saved" : "Ingredients saved",
+    label: "On hand",
+    tone: "green",
+  };
+  const tone = toneStyles[item.tone];
+
   return (
     <aside className="rounded-3xl border border-[#eadfce] bg-white/90 p-5 shadow-xl shadow-[#8c6b3f]/10 backdrop-blur">
       <div className="mb-4 flex items-center gap-3">
@@ -43,30 +52,24 @@ export function PantryOverview({ items }: PantryOverviewProps) {
       </div>
 
       <div className="divide-y divide-[#eadfce]">
-        {items.map((item) => {
-          const tone = toneStyles[item.tone];
-
-          return (
-            <div className="flex items-center gap-4 py-4" key={item.label}>
-              <span
-                className={`grid size-11 shrink-0 place-items-center rounded-full ${tone.bg} ${tone.text}`}
-              >
-                {tone.icon}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className={`text-2xl font-bold leading-none ${tone.text}`}>
-                  {item.count}
-                </p>
-                <p className="mt-1 text-xs font-medium text-[#625d52]">
-                  {item.label}
-                </p>
-              </div>
-              <p className="text-right text-xs text-[#625d52]">
-                {item.description}
-              </p>
-            </div>
-          );
-        })}
+        <div className="flex items-center gap-4 py-4">
+          <span
+            className={`grid size-11 shrink-0 place-items-center rounded-full ${tone.bg} ${tone.text}`}
+          >
+            {tone.icon}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className={`text-2xl font-bold leading-none ${tone.text}`}>
+              {item.count}
+            </p>
+            <p className="mt-1 text-xs font-medium text-[#625d52]">
+              {item.label}
+            </p>
+          </div>
+          <p className="text-right text-xs text-[#625d52]">
+            {item.description}
+          </p>
+        </div>
       </div>
 
       <a
