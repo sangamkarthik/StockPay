@@ -43,18 +43,7 @@ export async function POST(request: Request) {
   const subtotal = normalizedProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
   const tax = taxOverride ?? 0;
   const serviceFee = serviceFeeOverride ?? 0;
-
-  // North computes the authorized amount from the products array sum — it ignores
-  // the top-level `amount` field. Tax and serviceFee are display-only in the embed.
-  // To authorize the full grand total we append fee line items to the products list.
-  const northProducts = [...normalizedProducts];
-  if (roundMoney(tax) > 0) {
-    northProducts.push({ name: "Tax", price: roundMoney(tax), quantity: 1 });
-  }
-  if (roundMoney(serviceFee) > 0) {
-    northProducts.push({ name: "Delivery & Service Fee", price: roundMoney(serviceFee), quantity: 1 });
-  }
-  const amount = northProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+  const amount = roundMoney(subtotal + tax + serviceFee);
 
   try {
     const response = await fetch(`${NORTH_API_BASE}/api/sessions`, {
@@ -66,10 +55,10 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         checkoutId,
         profileId,
-        amount: roundMoney(amount),
-        tax: 0,
-        serviceFee: 0,
-        products: northProducts,
+        amount,
+        tax: roundMoney(tax),
+        serviceFee: roundMoney(serviceFee),
+        products: normalizedProducts,
         metadata: JSON.stringify({}),
       }),
     });
